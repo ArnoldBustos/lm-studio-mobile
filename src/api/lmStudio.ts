@@ -212,6 +212,11 @@ export const fetchModels = async (settings: ServerSettings): Promise<FetchModels
   }
 };
 
+// `connectToLmStudio` verifies connectivity through the models endpoint and returns the available chat models.
+export const connectToLmStudio = async (
+  settings: ServerSettings
+): Promise<FetchModelsResult> => fetchModels(settings);
+
 // `sendChatMessage` posts one user input to native LM Studio chat and returns the parsed assistant reply.
 export const sendChatMessage = async (
   settings: ServerSettings,

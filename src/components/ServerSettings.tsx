@@ -36,9 +36,7 @@ export const ServerSettings = ({
   onModelChange,
   onFetchModels,
 }: ServerSettingsProps) => (
-  <View style={styles.card}>
-    <Text style={styles.title}>Server Settings</Text>
-
+  <View style={styles.container}>
     <Text style={styles.label}>Base URL</Text>
     <TextInput
       autoCapitalize="none"
@@ -112,21 +110,10 @@ export const ServerSettings = ({
   </View>
 );
 
-// `styles` defines the dark card layout used by the server settings component.
+// `styles` defines the dark form layout used by the server settings component.
 const styles = StyleSheet.create({
-  card: {
-    backgroundColor: '#111821',
-    borderColor: '#1e2935',
-    borderRadius: 16,
-    borderWidth: 1,
+  container: {
     gap: 10,
-    padding: 16,
-  },
-  title: {
-    color: '#f5f7fa',
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 4,
   },
   label: {
     color: '#c3ced9',

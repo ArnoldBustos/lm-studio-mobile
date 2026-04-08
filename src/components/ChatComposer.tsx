@@ -7,35 +7,39 @@ import {
   View,
 } from 'react-native';
 
-// `ChatInputProps` defines the presentational inputs required by the chat composer section.
-type ChatInputProps = {
+// `ChatComposerProps` defines the presentational inputs required by the pinned chat composer section.
+type ChatComposerProps = {
   draftMessage: string;
   isSending: boolean;
   canSend: boolean;
+  bottomInset: number;
   onDraftMessageChange: (value: string) => void;
   onSend: () => void;
   onClear: () => void;
 };
 
-// `ChatInput` renders the message composer and action buttons used by the root screen.
-export const ChatInput = ({
+// `ChatComposer` renders the pinned message composer and action buttons used by the root screen.
+export const ChatComposer = ({
   draftMessage,
   isSending,
   canSend,
+  bottomInset,
   onDraftMessageChange,
   onSend,
   onClear,
-}: ChatInputProps) => (
-  <View style={styles.container}>
-    <TextInput
-      multiline
-      onChangeText={onDraftMessageChange}
-      placeholder="Ask LM Studio something..."
-      placeholderTextColor="#617080"
-      style={styles.input}
-      textAlignVertical="top"
-      value={draftMessage}
-    />
+}: ChatComposerProps) => (
+  <View style={[styles.container, { paddingBottom: bottomInset > 0 ? bottomInset : 14 }]}>
+    <View style={styles.inputShell}>
+      <TextInput
+        multiline
+        onChangeText={onDraftMessageChange}
+        placeholder="Message LM Studio..."
+        placeholderTextColor="#617080"
+        style={styles.input}
+        textAlignVertical="top"
+        value={draftMessage}
+      />
+    </View>
 
     <View style={styles.actions}>
       <Pressable onPress={onClear} style={styles.secondaryButton}>
@@ -53,35 +57,40 @@ export const ChatInput = ({
   </View>
 );
 
-// `styles` defines the dark composer layout used by the chat input component.
+// `styles` defines the dark pinned composer layout used by the chat composer component.
 const styles = StyleSheet.create({
   container: {
+    backgroundColor: '#10161e',
+    borderTopColor: '#1f2a37',
+    borderTopWidth: 1,
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingTop: 12,
+  },
+  inputShell: {
     backgroundColor: '#111821',
     borderColor: '#1e2935',
-    borderRadius: 16,
+    borderRadius: 18,
     borderWidth: 1,
-    gap: 12,
-    padding: 14,
+    padding: 10,
   },
   input: {
-    backgroundColor: '#0b0f14',
-    borderColor: '#1f2a37',
-    borderRadius: 12,
-    borderWidth: 1,
     color: '#f5f7fa',
-    minHeight: 96,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
+    fontSize: 15,
+    lineHeight: 22,
+    maxHeight: 132,
+    minHeight: 44,
+    paddingHorizontal: 4,
+    paddingVertical: 6,
   },
   actions: {
     flexDirection: 'row',
-    gap: 12,
-    justifyContent: 'space-between',
+    gap: 10,
   },
   secondaryButton: {
     alignItems: 'center',
     backgroundColor: '#1b2430',
-    borderRadius: 10,
+    borderRadius: 12,
     flex: 1,
     paddingHorizontal: 12,
     paddingVertical: 12,
@@ -94,7 +103,7 @@ const styles = StyleSheet.create({
   primaryButton: {
     alignItems: 'center',
     backgroundColor: '#2563eb',
-    borderRadius: 10,
+    borderRadius: 12,
     flex: 1,
     paddingHorizontal: 12,
     paddingVertical: 12,

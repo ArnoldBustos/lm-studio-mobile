@@ -1,6 +1,9 @@
 // `ChatRole` defines the supported LM Studio chat roles used across transport and UI layers.
 export type ChatRole = 'system' | 'user' | 'assistant';
 
+// `ConnectionState` defines the connection lifecycle shown by the header and managed by the chat hook.
+export type ConnectionState = 'idle' | 'connecting' | 'connected' | 'error';
+
 // `ChatMessage` represents one transcript item shared between the hook, API formatter, and UI.
 export type ChatMessage = {
   id: string;

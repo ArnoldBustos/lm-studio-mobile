@@ -1,7 +1,12 @@
-import { useState } from 'react';
+import React from 'react';
 
-import { fetchModels as fetchModelsRequest, sendChatMessage } from '../api/lmStudio';
-import { ChatMessage, ModelOption, ServerSettings } from '../types/chat';
+import { connectToLmStudio, sendChatMessage } from '../api/lmStudio';
+import {
+  ChatMessage,
+  ConnectionState,
+  ModelOption,
+  ServerSettings,
+} from '../types/chat';
 
 // `createId` generates a lightweight local identifier for newly created transcript messages.
 const createId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
@@ -15,27 +20,58 @@ const initialSettings: ServerSettings = {
 
 // `useChat` owns the chat transcript, request lifecycle, and server settings used by the root screen.
 export const useChat = () => {
+  // `didAutoConnectRef` tracks whether the initial automatic connection attempt has already been performed.
+  const didAutoConnectRef = React.useRef(false);
   // `settings` stores the server settings edited in the server settings section.
-  const [settings, setSettings] = useState<ServerSettings>(initialSettings);
+  const [settings, setSettings] = React.useState<ServerSettings>(initialSettings);
   // `models` stores the fetched model list returned by the LM Studio models endpoint.
-  const [models, setModels] = useState<ModelOption[]>([]);
+  const [models, setModels] = React.useState<ModelOption[]>([]);
   // `messages` stores the user and assistant transcript displayed by the message list.
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = React.useState<ChatMessage[]>([]);
   // `draftMessage` stores the current unsent user input shown in the chat input section.
-  const [draftMessage, setDraftMessage] = useState('');
+  const [draftMessage, setDraftMessage] = React.useState('');
   // `isFetchingModels` tracks the loading state for the fetch models button.
-  const [isFetchingModels, setIsFetchingModels] = useState(false);
+  const [isFetchingModels, setIsFetchingModels] = React.useState(false);
   // `isSending` tracks the loading state for the send button and transcript footer.
-  const [isSending, setIsSending] = useState(false);
+  const [isSending, setIsSending] = React.useState(false);
+  // `connectionState` stores the high-level connection lifecycle shown by the header and settings section.
+  const [connectionState, setConnectionState] = React.useState<ConnectionState>('idle');
+  // `connectionError` stores readable errors from the latest connection attempt.
+  const [connectionError, setConnectionError] = React.useState('');
   // `modelError` stores readable errors related to model discovery.
-  const [modelError, setModelError] = useState('');
+  const [modelError, setModelError] = React.useState('');
   // `chatError` stores readable errors related to message sending.
-  const [chatError, setChatError] = useState('');
+  const [chatError, setChatError] = React.useState('');
   // `previousResponseId` stores the LM Studio native chat response id used to continue server-side context.
-  const [previousResponseId, setPreviousResponseId] = useState<string | null>(null);
+  const [previousResponseId, setPreviousResponseId] = React.useState<string | null>(null);
+
+  // `applyConnectionResult` stores fetched models and updates connection state after a successful connection attempt.
+  const applyConnectionResult = (currentSettings: ServerSettings, modelsResult: ModelOption[]) => {
+    setModels(modelsResult);
+    setConnectionError('');
+    setConnectionState('connected');
+    setModelError('');
+
+    if (currentSettings.model.trim().length === 0 && modelsResult.length > 0) {
+      setSettings((previousSettings) => ({
+        baseUrl: previousSettings.baseUrl,
+        bearerToken: previousSettings.bearerToken,
+        model: modelsResult[0].id,
+      }));
+    }
+  };
+
+  // `resetConnectionState` clears connection status after server settings that affect connectivity change.
+  const resetConnectionState = () => {
+    setConnectionState('idle');
+    setConnectionError('');
+    setModelError('');
+    setModels([]);
+  };
 
   // `setBaseUrl` updates only the base URL field used by the LM Studio transport layer.
   const setBaseUrl = (baseUrl: string) => {
+    resetConnectionState();
     setSettings((currentSettings) => ({
       baseUrl,
       bearerToken: currentSettings.bearerToken,
@@ -45,6 +81,7 @@ export const useChat = () => {
 
   // `setBearerToken` updates only the bearer token field used for authenticated requests.
   const setBearerToken = (bearerToken: string) => {
+    resetConnectionState();
     setSettings((currentSettings) => ({
       baseUrl: currentSettings.baseUrl,
       bearerToken,
@@ -61,35 +98,51 @@ export const useChat = () => {
     }));
   };
 
-  // `fetchModels` loads model options and adopts the first model when none is currently selected.
-  const fetchModels = async () => {
+  // `connectWithSettings` verifies the server, fetches models, and updates connection state for a specific settings snapshot.
+  const connectWithSettings = React.useCallback(async (currentSettings: ServerSettings) => {
     setIsFetchingModels(true);
     setModelError('');
-    console.log('[useChat] fetchModels baseUrl:', settings.baseUrl);
+    setConnectionError('');
+    setConnectionState('connecting');
+    console.log('[useChat] fetchModels baseUrl:', currentSettings.baseUrl);
 
     try {
       // `result` stores the parsed model list returned by the transport module.
-      const result = await fetchModelsRequest(settings);
+      const result = await connectToLmStudio(currentSettings);
 
-      setModels(result.models);
-
-      if (settings.model.trim().length === 0 && result.models.length > 0) {
-        setSettings((currentSettings) => ({
-          baseUrl: currentSettings.baseUrl,
-          bearerToken: currentSettings.bearerToken,
-          model: result.models[0].id,
-        }));
-      }
+      applyConnectionResult(currentSettings, result.models);
     } catch (error) {
       if (error instanceof Error) {
+        setConnectionError(error.message);
         setModelError(error.message);
       } else {
+        setConnectionError('Unable to connect to LM Studio.');
         setModelError('Unable to fetch models.');
       }
+
+      setConnectionState('error');
     } finally {
       setIsFetchingModels(false);
     }
+  }, []);
+
+  // `connect` verifies the server, fetches models, and updates the connection state shown by the chat UI.
+  const connect = async () => {
+    await connectWithSettings(settings);
   };
+
+  React.useEffect(() => {
+    if (didAutoConnectRef.current) {
+      return;
+    }
+
+    if (initialSettings.baseUrl.trim().length === 0) {
+      return;
+    }
+
+    didAutoConnectRef.current = true;
+    void connectWithSettings(initialSettings);
+  }, [connectWithSettings]);
 
   // `sendMessage` appends a user message, sends the latest input, and appends the assistant reply.
   const sendMessage = async () => {
@@ -140,14 +193,19 @@ export const useChat = () => {
 
   // `canSend` exposes the UI-ready send state derived from the current draft, model, and loading state.
   const canSend =
-    !isSending && settings.model.trim().length > 0 && draftMessage.trim().length > 0;
+    connectionState === 'connected' &&
+    !isSending &&
+    settings.model.trim().length > 0 &&
+    draftMessage.trim().length > 0;
 
   return {
     canSend,
     chatError,
     clearChat,
+    connect,
+    connectionError,
+    connectionState,
     draftMessage,
-    fetchModels,
     isFetchingModels,
     isSending,
     messages,
