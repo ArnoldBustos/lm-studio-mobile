@@ -15,7 +15,6 @@ type ChatComposerProps = {
   bottomInset: number;
   onDraftMessageChange: (value: string) => void;
   onSend: () => void;
-  onClear: () => void;
 };
 
 // `ChatComposer` renders the pinned message composer and action buttons used by the root screen.
@@ -26,32 +25,27 @@ export const ChatComposer = ({
   bottomInset,
   onDraftMessageChange,
   onSend,
-  onClear,
 }: ChatComposerProps) => (
-  <View style={[styles.container, { paddingBottom: bottomInset > 0 ? bottomInset : 14 }]}>
-    <View style={styles.inputShell}>
-      <TextInput
-        multiline
-        onChangeText={onDraftMessageChange}
-        placeholder="Message LM Studio..."
-        placeholderTextColor="#617080"
-        style={styles.input}
-        textAlignVertical="top"
-        value={draftMessage}
-      />
-    </View>
-
-    <View style={styles.actions}>
-      <Pressable onPress={onClear} style={styles.secondaryButton}>
-        <Text style={styles.secondaryButtonText}>Clear</Text>
-      </Pressable>
+  <View style={[styles.container, { paddingBottom: bottomInset > 0 ? bottomInset : 8 }]}>
+    <View style={styles.row}>
+      <View style={styles.inputShell}>
+        <TextInput
+          multiline
+          onChangeText={onDraftMessageChange}
+          placeholder="Message LM Studio..."
+          placeholderTextColor="#617080"
+          style={styles.input}
+          textAlignVertical="top"
+          value={draftMessage}
+        />
+      </View>
 
       <Pressable
         disabled={!canSend}
         onPress={onSend}
         style={[styles.primaryButton, canSend ? null : styles.primaryButtonDisabled]}
       >
-        <Text style={styles.primaryButtonText}>{isSending ? 'Sending...' : 'Send'}</Text>
+        <Text style={styles.primaryButtonText}>{isSending ? '...' : 'Send'}</Text>
       </Pressable>
     </View>
   </View>
@@ -63,49 +57,40 @@ const styles = StyleSheet.create({
     backgroundColor: '#10161e',
     borderTopColor: '#1f2a37',
     borderTopWidth: 1,
+    paddingHorizontal: 12,
+    paddingTop: 10,
+  },
+  row: {
+    alignItems: 'flex-end',
+    flexDirection: 'row',
     gap: 10,
-    paddingHorizontal: 14,
-    paddingTop: 12,
   },
   inputShell: {
     backgroundColor: '#111821',
     borderColor: '#1e2935',
     borderRadius: 18,
     borderWidth: 1,
-    padding: 10,
+    flex: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
   },
   input: {
     color: '#f5f7fa',
     fontSize: 15,
     lineHeight: 22,
     maxHeight: 132,
-    minHeight: 44,
+    minHeight: 40,
     paddingHorizontal: 4,
     paddingVertical: 6,
-  },
-  actions: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  secondaryButton: {
-    alignItems: 'center',
-    backgroundColor: '#1b2430',
-    borderRadius: 12,
-    flex: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-  },
-  secondaryButtonText: {
-    color: '#dbe4ee',
-    fontSize: 14,
-    fontWeight: '600',
   },
   primaryButton: {
     alignItems: 'center',
     backgroundColor: '#2563eb',
-    borderRadius: 12,
-    flex: 1,
-    paddingHorizontal: 12,
+    borderRadius: 16,
+    justifyContent: 'center',
+    minHeight: 48,
+    minWidth: 76,
+    paddingHorizontal: 14,
     paddingVertical: 12,
   },
   primaryButtonDisabled: {

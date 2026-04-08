@@ -14,6 +14,7 @@ type ChatHeaderProps = {
   currentModel: string;
   isConnecting: boolean;
   onConnect: () => void;
+  onOpenSettings: () => void;
 };
 
 // `getConnectionLabel` maps the internal connection lifecycle to compact header text.
@@ -39,42 +40,49 @@ export const ChatHeader = ({
   currentModel,
   isConnecting,
   onConnect,
+  onOpenSettings,
 }: ChatHeaderProps) => (
   <View style={styles.container}>
     <View style={styles.topRow}>
-      <View style={styles.textBlock}>
-        <Text style={styles.title}>LM Studio LAN Chat</Text>
-        <Text style={styles.subtitle}>
-          Connect to a Windows-hosted LM Studio server over your local network.
-        </Text>
+      <View style={styles.leftCluster}>
+        <Text style={styles.title}>LM Studio</Text>
+
+        <View style={styles.statusPill}>
+          <View
+            style={[
+              styles.statusDot,
+              connectionState === 'connected'
+                ? styles.statusDotConnected
+                : connectionState === 'error'
+                  ? styles.statusDotError
+                  : connectionState === 'connecting'
+                    ? styles.statusDotConnecting
+                    : styles.statusDotIdle,
+            ]}
+          />
+          <Text style={styles.statusText}>{getConnectionLabel(connectionState)}</Text>
+        </View>
+
+        {currentModel.trim().length > 0 ? (
+          <Text numberOfLines={1} style={styles.modelText}>
+            {currentModel}
+          </Text>
+        ) : null}
       </View>
 
-      <Pressable
-        disabled={isConnecting}
-        onPress={onConnect}
-        style={[styles.connectButton, isConnecting ? styles.connectButtonDisabled : null]}
-      >
-        <Text style={styles.connectButtonText}>{isConnecting ? 'Connecting...' : 'Connect'}</Text>
-      </Pressable>
-    </View>
+      <View style={styles.actions}>
+        <Pressable
+          disabled={isConnecting}
+          onPress={onConnect}
+          style={[styles.connectButton, isConnecting ? styles.connectButtonDisabled : null]}
+        >
+          <Text style={styles.connectButtonText}>{isConnecting ? '...' : 'Connect'}</Text>
+        </Pressable>
 
-    <View style={styles.statusRow}>
-      <View
-        style={[
-          styles.statusDot,
-          connectionState === 'connected'
-            ? styles.statusDotConnected
-            : connectionState === 'error'
-              ? styles.statusDotError
-              : connectionState === 'connecting'
-                ? styles.statusDotConnecting
-                : styles.statusDotIdle,
-        ]}
-      />
-      <Text style={styles.statusText}>Status: {getConnectionLabel(connectionState)}</Text>
-      <Text style={styles.modelText}>
-        {currentModel.trim().length > 0 ? `Model: ${currentModel}` : 'Model: not selected'}
-      </Text>
+        <Pressable onPress={onOpenSettings} style={styles.settingsButton}>
+          <Text style={styles.settingsButtonText}>Gear</Text>
+        </Pressable>
+      </View>
     </View>
   </View>
 );
@@ -82,9 +90,11 @@ export const ChatHeader = ({
 // `styles` defines the top header presentation used by the chat screen.
 const styles = StyleSheet.create({
   container: {
-    gap: 4,
-    paddingHorizontal: 16,
-    paddingTop: 10,
+    borderBottomColor: '#1e2935',
+    borderBottomWidth: 1,
+    paddingHorizontal: 12,
+    paddingTop: 8,
+    paddingBottom: 10,
   },
   topRow: {
     alignItems: 'center',
@@ -92,28 +102,25 @@ const styles = StyleSheet.create({
     gap: 12,
     justifyContent: 'space-between',
   },
-  textBlock: {
+  leftCluster: {
     flex: 1,
-    gap: 4,
-    paddingRight: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    minWidth: 0,
   },
   title: {
     color: '#f5f7fa',
-    fontSize: 26,
+    fontSize: 16,
     fontWeight: '700',
-  },
-  subtitle: {
-    color: '#8a97a8',
-    fontSize: 13,
-    lineHeight: 18,
   },
   connectButton: {
     alignItems: 'center',
     backgroundColor: '#2563eb',
-    borderRadius: 12,
-    minWidth: 104,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    borderRadius: 10,
+    minWidth: 74,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
   },
   connectButtonDisabled: {
     backgroundColor: '#334155',
@@ -123,12 +130,16 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
   },
-  statusRow: {
+  statusPill: {
     alignItems: 'center',
+    backgroundColor: '#111821',
+    borderColor: '#1e2935',
+    borderRadius: 999,
+    borderWidth: 1,
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    paddingTop: 6,
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
   },
   statusDot: {
     borderRadius: 999,
@@ -149,11 +160,29 @@ const styles = StyleSheet.create({
   },
   statusText: {
     color: '#cbd5e1',
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
   },
   modelText: {
     color: '#8a97a8',
-    fontSize: 12,
+    flex: 1,
+    fontSize: 11,
+  },
+  actions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  settingsButton: {
+    alignItems: 'center',
+    backgroundColor: '#1b2430',
+    borderRadius: 10,
+    minWidth: 64,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  settingsButtonText: {
+    color: '#dbe4ee',
+    fontSize: 13,
+    fontWeight: '600',
   },
 });
