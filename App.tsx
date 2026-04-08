@@ -15,9 +15,11 @@ import {
 import { buildModelsEndpoint } from './src/api/lmStudio';
 import { ChatComposer } from './src/components/ChatComposer';
 import { ChatHeader } from './src/components/ChatHeader';
+import { MessageActionSheet } from './src/components/MessageActionSheet';
 import { MessageList } from './src/components/MessageList';
 import { SettingsModal } from './src/components/SettingsModal';
 import { useChat } from './src/hooks/useChat';
+import { ChatMessage } from './src/types/chat';
 
 // `ChatScreen` renders the safe-area-aware single-screen LM Studio chat layout and connects presentational sections to chat state.
 const ChatScreen = () => {
@@ -27,6 +29,8 @@ const ChatScreen = () => {
   const insets = useSafeAreaInsets();
   // `isSettingsModalVisible` tracks whether the settings modal is visible above the main chat screen.
   const [isSettingsModalVisible, setIsSettingsModalVisible] = React.useState(false);
+  // `selectedMessage` stores the transcript item currently targeted by the shared message action sheet.
+  const [selectedMessage, setSelectedMessage] = React.useState<ChatMessage | null>(null);
   // `modelsDebugEndpoint` stores the exact models URL shown by the temporary debug block.
   const modelsDebugEndpoint =
     chat.settings.baseUrl.trim().length > 0 ? buildModelsEndpoint(chat.settings.baseUrl) : '';
@@ -38,13 +42,37 @@ const ChatScreen = () => {
   const closeSettingsModal = () => {
     setIsSettingsModalVisible(false);
   };
+  // `openMessageActions` selects a transcript message and shows the shared action sheet for it.
+  const openMessageActions = (message: ChatMessage) => {
+    setSelectedMessage(message);
+  };
+  // `closeMessageActions` clears the selected transcript message and hides the shared action sheet.
+  const closeMessageActions = () => {
+    setSelectedMessage(null);
+  };
+  // `handleCopyMessage` copies a selected message through the chat hook action layer.
+  const handleCopyMessage = async (message: ChatMessage) => {
+    await chat.copyMessage(message);
+  };
+  // `handleDeleteMessage` removes a selected transcript item through the chat hook action layer.
+  const handleDeleteMessage = (message: ChatMessage) => {
+    chat.deleteMessage(message.id);
+  };
+  // `handleEditMessage` rewinds to a selected user message and loads it back into the composer.
+  const handleEditMessage = (message: ChatMessage) => {
+    chat.startEditingMessage(message.id);
+  };
+  // `handleRewindMessage` truncates the transcript at the selected user message.
+  const handleRewindMessage = (message: ChatMessage) => {
+    chat.rewindToMessage(message.id);
+  };
 
   return (
     <SafeAreaView edges={['top']} style={styles.safeArea}>
       <StatusBar style="light" />
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={insets.top}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top : 0}
         style={styles.keyboardContainer}
       >
         <View style={styles.screen}>
@@ -61,15 +89,27 @@ const ChatScreen = () => {
               messages={chat.messages}
               isLoading={chat.isSending}
               errorText={chat.chatError}
+              onOpenMessageActions={openMessageActions}
             />
           </View>
 
           <ChatComposer
             bottomInset={insets.bottom}
+            canAttachImage={
+              chat.selectedModelSupportsImages &&
+              !chat.isSending &&
+              chat.pendingAttachment === null
+            }
+            editingMessageId={chat.editingMessageId}
             draftMessage={chat.draftMessage}
+            isPickingImage={chat.isPickingImage}
             isSending={chat.isSending}
             canSend={chat.canSend}
+            pendingAttachment={chat.pendingAttachment}
+            onCancelEditing={chat.cancelEditingMessage}
             onDraftMessageChange={chat.setDraftMessage}
+            onPickImage={chat.pickImageAttachment}
+            onRemoveAttachment={chat.removePendingAttachment}
             onSend={chat.sendMessage}
           />
         </View>
@@ -90,6 +130,16 @@ const ChatScreen = () => {
         onFetchModels={chat.connect}
         onClearChat={chat.clearChat}
         onClose={closeSettingsModal}
+      />
+
+      <MessageActionSheet
+        message={selectedMessage}
+        visible={selectedMessage !== null}
+        onClose={closeMessageActions}
+        onCopy={handleCopyMessage}
+        onDelete={handleDeleteMessage}
+        onEdit={handleEditMessage}
+        onRewind={handleRewindMessage}
       />
     </SafeAreaView>
   );

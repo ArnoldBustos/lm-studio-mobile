@@ -1,5 +1,5 @@
 import React from 'react';
-import * as Clipboard from 'expo-clipboard';
+import { Image } from 'expo-image';
 import {
   Pressable,
   StyleSheet,
@@ -12,35 +12,18 @@ import { ChatMessage } from '../types/chat';
 // `MessageBubbleProps` defines the transcript item shown by the message list.
 type MessageBubbleProps = {
   message: ChatMessage;
+  onOpenActions: (message: ChatMessage) => void;
 };
 
 // `MessageBubble` renders one chat message and styles it by sender role for the transcript list.
-export const MessageBubble = ({ message }: MessageBubbleProps) => {
-  // `copyResetTimerRef` stores the timeout that clears temporary copy feedback after a long press copy action.
-  const copyResetTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+export const MessageBubble = ({ message, onOpenActions }: MessageBubbleProps) => {
   // `isUserMessage` marks messages authored by the local user for alignment and color changes.
   const isUserMessage = message.role === 'user';
-  // `isCopied` tracks temporary inline copy feedback shown after the message content is copied.
-  const [isCopied, setIsCopied] = React.useState(false);
-
-  React.useEffect(() => () => {
-    if (copyResetTimerRef.current) {
-      clearTimeout(copyResetTimerRef.current);
-    }
-  }, []);
-
-  // `handleLongPress` copies the full message content to the device clipboard and shows temporary feedback.
-  const handleLongPress = async () => {
-    await Clipboard.setStringAsync(message.content);
-    setIsCopied(true);
-
-    if (copyResetTimerRef.current) {
-      clearTimeout(copyResetTimerRef.current);
-    }
-
-    copyResetTimerRef.current = setTimeout(() => {
-      setIsCopied(false);
-    }, 1200);
+  // `imageAttachment` stores the first image attachment shown inline with the message bubble.
+  const imageAttachment = message.attachments.length > 0 ? message.attachments[0] : null;
+  // `handleLongPress` forwards the pressed message to the higher-level action menu controller.
+  const handleLongPress = () => {
+    onOpenActions(message);
   };
 
   return (
@@ -52,9 +35,11 @@ export const MessageBubble = ({ message }: MessageBubbleProps) => {
       >
         <View style={styles.headerRow}>
           <Text style={styles.roleLabel}>{isUserMessage ? 'You' : 'Assistant'}</Text>
-          {isCopied ? <Text style={styles.copiedLabel}>Copied</Text> : null}
         </View>
-        <Text style={styles.content}>{message.content}</Text>
+        {imageAttachment ? (
+          <Image contentFit="cover" source={{ uri: imageAttachment.uri }} style={styles.attachmentImage} />
+        ) : null}
+        {message.content.length > 0 ? <Text style={styles.content}>{message.content}</Text> : null}
       </Pressable>
     </View>
   );
@@ -96,10 +81,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
   },
-  copiedLabel: {
-    color: '#bfdbfe',
-    fontSize: 11,
-    fontWeight: '600',
+  attachmentImage: {
+    backgroundColor: '#0b0f14',
+    borderRadius: 12,
+    height: 148,
+    width: 148,
   },
   content: {
     color: '#f5f7fa',

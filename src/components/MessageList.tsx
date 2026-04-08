@@ -18,17 +18,35 @@ type MessageListProps = {
   messages: ChatMessage[];
   isLoading: boolean;
   errorText: string;
+  onOpenMessageActions: (message: ChatMessage) => void;
 };
 
 // `renderMessageItem` renders one transcript row for the chat list.
-const renderMessageItem: ListRenderItem<ChatMessage> = ({ item }) => <MessageBubble message={item} />;
+const createRenderMessageItem = (onOpenMessageActions: (message: ChatMessage) => void) => {
+  // `renderMessageItem` renders one transcript row and forwards long-press events to the higher-level action sheet.
+  const renderMessageItem: ListRenderItem<ChatMessage> = ({ item }) => (
+    <MessageBubble message={item} onOpenActions={onOpenMessageActions} />
+  );
+
+  return renderMessageItem;
+};
 
 // `MessageList` renders the transcript as a chat list, keeps the newest items visible, and dismisses the keyboard on drag.
-export const MessageList = ({ messages, isLoading, errorText }: MessageListProps) => {
+export const MessageList = ({
+  messages,
+  isLoading,
+  errorText,
+  onOpenMessageActions,
+}: MessageListProps) => {
   // `listRef` stores the flat list instance used for automatic scroll-to-bottom behavior.
   const listRef = React.useRef<FlatList<ChatMessage>>(null);
   // `isNearBottomRef` tracks whether the user is already near the latest messages so auto-scroll does not fight manual scrolling.
   const isNearBottomRef = React.useRef(true);
+  // `renderMessageItem` stores the stable row renderer that opens the shared message action sheet.
+  const renderMessageItem = React.useMemo(
+    () => createRenderMessageItem(onOpenMessageActions),
+    [onOpenMessageActions]
+  );
 
   // `handleScroll` updates the near-bottom flag so auto-scroll only happens when the user is already near the latest message.
   const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {

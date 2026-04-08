@@ -1,6 +1,8 @@
 import {
   FetchModelsResult,
+  ChatAttachment,
   ModelOption,
+  SendChatInput,
   SendChatResult,
   ServerSettings,
 } from '../types/chat';
@@ -27,15 +29,32 @@ type LmStudioChatOutputRecord = {
   content?: string;
 };
 
+// `LmStudioChatTextInputRecord` describes one text input item sent to the native LM Studio chat endpoint.
+type LmStudioChatTextInputRecord = {
+  type: 'message';
+  content: string;
+};
+
+// `LmStudioChatImageInputRecord` describes one image input item sent to the native LM Studio chat endpoint.
+type LmStudioChatImageInputRecord = {
+  type: 'image';
+  data_url: string;
+};
+
 // `LmStudioChatResponseRecord` describes the native LM Studio chat response used by defensive parsing.
 type LmStudioChatResponseRecord = {
   output?: LmStudioChatOutputRecord[];
   response_id?: string;
 };
 
+// `LmStudioChatInputRecord` describes the supported native chat input value accepted by LM Studio.
+type LmStudioChatInputRecord =
+  | string
+  | (LmStudioChatTextInputRecord | LmStudioChatImageInputRecord)[];
+
 // `LmStudioChatRequestRecord` describes the native LM Studio chat request body sent by the transport layer.
 type LmStudioChatRequestRecord = {
-  input: string;
+  input: LmStudioChatInputRecord;
   model: string;
   previous_response_id?: string;
 };
@@ -93,7 +112,7 @@ const readErrorText = async (response: Response) => {
 // `isSelectableChatModel` keeps likely chat-capable models and filters out embedding entries when possible.
 const isSelectableChatModel = (modelRecord: LmStudioModelRecord) => {
   if (typeof modelRecord.type === 'string') {
-    return modelRecord.type === 'llm';
+    return modelRecord.type === 'llm' || modelRecord.type === 'vlm';
   }
 
   if (typeof modelRecord.key === 'string' && modelRecord.key.toLowerCase().includes('embed')) {
@@ -101,6 +120,34 @@ const isSelectableChatModel = (modelRecord: LmStudioModelRecord) => {
   }
 
   return true;
+};
+
+// `inferVisionCapability` estimates image support from the model id and label because the parsed models list does not expose explicit vision metadata.
+const inferVisionCapability = (modelRecord: LmStudioModelRecord) => {
+  if (modelRecord.type === 'vlm') {
+    return true;
+  }
+
+  // `combinedLabel` stores the normalized model id and label used for capability heuristics.
+  const combinedLabel = `${modelRecord.key} ${modelRecord.display_name || ''}`.toLowerCase();
+
+  return (
+    combinedLabel.includes('vision') ||
+    combinedLabel.includes('llava') ||
+    combinedLabel.includes('bakllava') ||
+    combinedLabel.includes('pixtral') ||
+    combinedLabel.includes('internvl') ||
+    combinedLabel.includes('minicpm-v') ||
+    combinedLabel.includes('qwen-vl') ||
+    combinedLabel.includes('qwen2-vl') ||
+    combinedLabel.includes('qwen2.5-vl') ||
+    combinedLabel.includes('gemma-3') ||
+    combinedLabel.includes('molmo') ||
+    combinedLabel.includes('phi-3-vision') ||
+    combinedLabel.includes('phi-4-multimodal') ||
+    combinedLabel.includes('llama-3.2-vision') ||
+    combinedLabel.includes('vl-')
+  );
 };
 
 // `mapModels` converts native LM Studio model payloads into UI-friendly model options.
@@ -128,6 +175,7 @@ const mapModels = (data: unknown): ModelOption[] => {
 
       return {
         id: modelRecord.key,
+        isVisionCapable: inferVisionCapability(modelRecord),
         label:
           typeof modelRecord.display_name === 'string' && modelRecord.display_name.trim().length > 0
             ? modelRecord.display_name
@@ -167,6 +215,34 @@ const extractAssistantMessage = (data: unknown) => {
     content: messageOutput.content.trim(),
     responseId: typeof responseRecord.response_id === 'string' ? responseRecord.response_id : null,
   };
+};
+
+// `buildImageDataUrl` converts one local image attachment into the base64 data URL expected by the native LM Studio image input format.
+const buildImageDataUrl = (attachment: ChatAttachment) =>
+  `data:${attachment.mimeType};base64,${attachment.base64Data}`;
+
+// `buildChatInput` formats outgoing text and optional image input for the native LM Studio `/api/v1/chat` endpoint.
+const buildChatInput = (input: SendChatInput): LmStudioChatInputRecord => {
+  if (input.attachment === null) {
+    return input.text;
+  }
+
+  // `parts` stores the ordered multimodal input array sent to LM Studio when an image is attached.
+  const parts: (LmStudioChatTextInputRecord | LmStudioChatImageInputRecord)[] = [];
+
+  if (input.text.length > 0) {
+    parts.push({
+      type: 'message',
+      content: input.text,
+    });
+  }
+
+  parts.push({
+    type: 'image',
+    data_url: buildImageDataUrl(input.attachment),
+  });
+
+  return parts;
 };
 
 // `fetchModels` loads the available models from LM Studio using the server settings form values.
@@ -220,7 +296,7 @@ export const connectToLmStudio = async (
 // `sendChatMessage` posts one user input to native LM Studio chat and returns the parsed assistant reply.
 export const sendChatMessage = async (
   settings: ServerSettings,
-  input: string,
+  input: SendChatInput,
   previousResponseId: string | null
 ): Promise<SendChatResult> => {
   // `baseUrl` stores the normalized base URL used for the native chat call.
@@ -234,15 +310,18 @@ export const sendChatMessage = async (
     throw new Error('Choose a model before sending a message.');
   }
 
-  if (input.trim().length === 0) {
-    throw new Error('Enter a message before sending.');
+  if (input.text.trim().length === 0 && input.attachment === null) {
+    throw new Error('Enter a message or attach an image before sending.');
   }
 
   // `endpoint` stores the full URL for the native LM Studio chat endpoint.
   const endpoint = `${baseUrl}/api/v1/chat`;
   // `payload` stores the request body expected by the native non-streaming chat endpoint.
   const payload: LmStudioChatRequestRecord = {
-    input: input.trim(),
+    input: buildChatInput({
+      attachment: input.attachment,
+      text: input.text.trim(),
+    }),
     model: settings.model.trim(),
   };
 
@@ -268,6 +347,7 @@ export const sendChatMessage = async (
 
   return {
     assistantMessage: {
+      attachments: [],
       content: assistantResult.content,
       id: createId(),
       role: 'assistant',

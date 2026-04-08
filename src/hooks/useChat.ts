@@ -1,7 +1,10 @@
 import React from 'react';
+import * as Clipboard from 'expo-clipboard';
+import * as ImagePicker from 'expo-image-picker';
 
 import { connectToLmStudio, sendChatMessage } from '../api/lmStudio';
 import {
+  ChatAttachment,
   ChatMessage,
   ConnectionState,
   ModelOption,
@@ -10,6 +13,24 @@ import {
 
 // `createId` generates a lightweight local identifier for newly created transcript messages.
 const createId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+
+// `mapPickerAssetToAttachment` converts one picked Expo image asset into the app's local attachment shape.
+const mapPickerAssetToAttachment = (asset: ImagePicker.ImagePickerAsset): ChatAttachment | null => {
+  if (typeof asset.base64 !== 'string' || asset.base64.length === 0) {
+    return null;
+  }
+
+  return {
+    base64Data: asset.base64,
+    fileName: typeof asset.fileName === 'string' && asset.fileName.length > 0 ? asset.fileName : 'image.jpg',
+    height: asset.height,
+    id: createId(),
+    mimeType: typeof asset.mimeType === 'string' && asset.mimeType.length > 0 ? asset.mimeType : 'image/jpeg',
+    type: 'image',
+    uri: asset.uri,
+    width: asset.width,
+  };
+};
 
 // `initialSettings` defines the starting connection values for the first app launch.
 const initialSettings: ServerSettings = {
@@ -44,6 +65,12 @@ export const useChat = () => {
   const [chatError, setChatError] = React.useState('');
   // `previousResponseId` stores the LM Studio native chat response id used to continue server-side context.
   const [previousResponseId, setPreviousResponseId] = React.useState<string | null>(null);
+  // `editingMessageId` stores the user message currently being revised in the composer after an edit action.
+  const [editingMessageId, setEditingMessageId] = React.useState<string | null>(null);
+  // `pendingAttachment` stores the single image queued in the composer before the next send.
+  const [pendingAttachment, setPendingAttachment] = React.useState<ChatAttachment | null>(null);
+  // `isPickingImage` tracks the gallery picker lifecycle for the attach button state.
+  const [isPickingImage, setIsPickingImage] = React.useState(false);
 
   // `applyConnectionResult` stores fetched models and updates connection state after a successful connection attempt.
   const applyConnectionResult = (currentSettings: ServerSettings, modelsResult: ModelOption[]) => {
@@ -131,6 +158,14 @@ export const useChat = () => {
     await connectWithSettings(settings);
   };
 
+  // `selectedModel` stores the full selected model metadata used for image support decisions.
+  const selectedModel =
+    settings.model.trim().length > 0
+      ? models.find((modelOption) => modelOption.id === settings.model) || null
+      : null;
+  // `selectedModelSupportsImages` indicates whether the current model appears to support image input.
+  const selectedModelSupportsImages = selectedModel ? selectedModel.isVisionCapable : false;
+
   React.useEffect(() => {
     if (didAutoConnectRef.current) {
       return;
@@ -148,13 +183,25 @@ export const useChat = () => {
   const sendMessage = async () => {
     // `trimmedMessage` stores the validated draft text before it is added to the transcript.
     const trimmedMessage = draftMessage.trim();
+    // `attachmentToSend` stores the current pending image snapshot so send state can be cleared before the request runs.
+    const attachmentToSend = pendingAttachment;
 
-    if (trimmedMessage.length === 0 || settings.model.trim().length === 0 || isSending) {
+    if (
+      (trimmedMessage.length === 0 && attachmentToSend === null) ||
+      settings.model.trim().length === 0 ||
+      isSending
+    ) {
+      return;
+    }
+
+    if (attachmentToSend !== null && !selectedModelSupportsImages) {
+      setChatError('The selected model does not appear to support image input.');
       return;
     }
 
     // `userMessage` stores the new transcript item created from the current draft input.
     const userMessage: ChatMessage = {
+      attachments: attachmentToSend ? [attachmentToSend] : [],
       content: trimmedMessage,
       id: createId(),
       role: 'user',
@@ -164,12 +211,21 @@ export const useChat = () => {
 
     setDraftMessage('');
     setChatError('');
+    setEditingMessageId(null);
+    setPendingAttachment(null);
     setMessages(nextMessages);
     setIsSending(true);
 
     try {
       // `result` stores the assistant reply returned by the LM Studio chat transport module.
-      const result = await sendChatMessage(settings, trimmedMessage, previousResponseId);
+      const result = await sendChatMessage(
+        settings,
+        {
+          attachment: attachmentToSend,
+          text: trimmedMessage,
+        },
+        previousResponseId
+      );
 
       setMessages((currentMessages) => currentMessages.concat(result.assistantMessage));
       setPreviousResponseId(result.responseId);
@@ -188,7 +244,139 @@ export const useChat = () => {
   const clearChat = () => {
     setMessages([]);
     setChatError('');
+    setDraftMessage('');
+    setEditingMessageId(null);
+    setPendingAttachment(null);
     setPreviousResponseId(null);
+  };
+
+  // `copyMessage` copies the selected transcript message content to the device clipboard.
+  const copyMessage = async (message: ChatMessage) => {
+    await Clipboard.setStringAsync(message.content);
+  };
+
+  // `findMessageIndex` returns the transcript index for the selected message id or `-1` when it is missing.
+  const findMessageIndex = (messageId: string) =>
+    messages.findIndex((message) => message.id === messageId);
+
+  // `deleteMessage` removes one transcript item locally and clears server response chaining for future sends.
+  const deleteMessage = (messageId: string) => {
+    setMessages((currentMessages) => currentMessages.filter((message) => message.id !== messageId));
+    setChatError('');
+    setPreviousResponseId(null);
+
+    if (editingMessageId === messageId) {
+      setEditingMessageId(null);
+    }
+  };
+
+  // `rewindToMessage` truncates the transcript at the selected message and clears server response chaining.
+  const rewindToMessage = (messageId: string) => {
+    const messageIndex = findMessageIndex(messageId);
+
+    if (messageIndex < 0) {
+      return;
+    }
+
+    setMessages((currentMessages) => currentMessages.slice(0, messageIndex));
+    setChatError('');
+    setEditingMessageId(null);
+    setPreviousResponseId(null);
+  };
+
+  // `startEditingMessage` removes the selected user message and later messages, then loads its text into the composer.
+  const startEditingMessage = (messageId: string) => {
+    const messageIndex = findMessageIndex(messageId);
+
+    if (messageIndex < 0) {
+      return;
+    }
+
+    const targetMessage = messages[messageIndex];
+
+    if (targetMessage.role !== 'user') {
+      return;
+    }
+
+    setMessages((currentMessages) => currentMessages.slice(0, messageIndex));
+    setDraftMessage(targetMessage.content);
+    setChatError('');
+    setEditingMessageId(messageId);
+    setPendingAttachment(targetMessage.attachments.length > 0 ? targetMessage.attachments[0] : null);
+    setPreviousResponseId(null);
+  };
+
+  // `cancelEditingMessage` exits edit mode without clearing the current composer text.
+  const cancelEditingMessage = () => {
+    setEditingMessageId(null);
+  };
+
+  // `removePendingAttachment` clears the current image queued in the composer.
+  const removePendingAttachment = () => {
+    setPendingAttachment(null);
+  };
+
+  // `pickImageAttachment` opens the gallery picker, validates the selected image, and stores it in the composer state.
+  const pickImageAttachment = async () => {
+    if (isPickingImage) {
+      return;
+    }
+
+    if (settings.model.trim().length === 0) {
+      setChatError('Choose a model before attaching an image.');
+      return;
+    }
+
+    if (!selectedModelSupportsImages) {
+      setChatError('The selected model does not appear to support image input.');
+      return;
+    }
+
+    setIsPickingImage(true);
+
+    try {
+      // `permissionResult` stores the current gallery access permission response returned by Expo Image Picker.
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+      if (!permissionResult.granted) {
+        setChatError('Media library permission is required to attach an image.');
+        return;
+      }
+
+      // `pickerResult` stores the image selection result returned by the native gallery picker UI.
+      const pickerResult = await ImagePicker.launchImageLibraryAsync({
+        allowsEditing: false,
+        allowsMultipleSelection: false,
+        base64: true,
+        mediaTypes: ['images'],
+        quality: 0.8,
+      });
+
+      if (pickerResult.canceled) {
+        return;
+      }
+
+      // `selectedAsset` stores the first picked gallery image used for the pending attachment state.
+      const selectedAsset = pickerResult.assets[0];
+      // `nextAttachment` stores the normalized chat attachment built from the picked image asset.
+      const nextAttachment = mapPickerAssetToAttachment(selectedAsset);
+
+      if (nextAttachment === null) {
+        setChatError('Unable to read the selected image data.');
+        return;
+      }
+
+      setPendingAttachment(nextAttachment);
+      setChatError('');
+    } catch (error) {
+      if (error instanceof Error) {
+        setChatError(error.message);
+      } else {
+        setChatError('Unable to pick an image.');
+      }
+    } finally {
+      setIsPickingImage(false);
+    }
   };
 
   // `canSend` exposes the UI-ready send state derived from the current draft, model, and loading state.
@@ -196,7 +384,8 @@ export const useChat = () => {
     connectionState === 'connected' &&
     !isSending &&
     settings.model.trim().length > 0 &&
-    draftMessage.trim().length > 0;
+    (pendingAttachment === null || selectedModelSupportsImages) &&
+    (draftMessage.trim().length > 0 || pendingAttachment !== null);
 
   return {
     canSend,
@@ -205,13 +394,24 @@ export const useChat = () => {
     connect,
     connectionError,
     connectionState,
+    copyMessage,
+    deleteMessage,
     draftMessage,
+    editingMessageId,
     isFetchingModels,
+    isPickingImage,
     isSending,
     messages,
     modelError,
     models,
+    pendingAttachment,
+    pickImageAttachment,
+    removePendingAttachment,
+    rewindToMessage,
     sendMessage,
+    selectedModelSupportsImages,
+    startEditingMessage,
+    cancelEditingMessage,
     setBaseUrl,
     setBearerToken,
     setDraftMessage,
