@@ -2,6 +2,7 @@ import React from 'react';
 import * as Clipboard from 'expo-clipboard';
 import * as ImagePicker from 'expo-image-picker';
 
+import { createChatContentSnapshot } from '../domain/chatContent';
 import { connectToLmStudio, sendChatMessage } from '../api/lmStudio';
 import {
   ChatAttachment,
@@ -197,6 +198,27 @@ export const useChat = () => {
     return null;
   };
 
+  // `setMessageStatus` updates the local send lifecycle for one transcript item without changing its content fields.
+  const setMessageStatus = (messageId: string, nextStatus: ChatMessage['status']) => {
+    setMessages((currentMessages) =>
+      currentMessages.map((message) => {
+        if (message.id !== messageId) {
+          return message;
+        }
+
+        return {
+          attachments: message.attachments,
+          content: message.content,
+          contentParts: message.contentParts,
+          id: message.id,
+          responseId: message.responseId,
+          role: message.role,
+          status: nextStatus,
+        };
+      })
+    );
+  };
+
   // `sendUserTurn` appends one user turn, requests the assistant reply, and updates the response chain state.
   const sendUserTurn = async (
     userMessage: ChatMessage,
@@ -220,15 +242,17 @@ export const useChat = () => {
       const result = await sendChatMessage(
         settings,
         {
-          attachment: userMessage.attachments.length > 0 ? userMessage.attachments[0] : null,
-          text: userMessage.content,
+          parts: userMessage.contentParts,
         },
         responseIdToUse
       );
 
+      setMessageStatus(userMessage.id, 'sent');
       setMessages((currentMessages) => currentMessages.concat(result.assistantMessage));
       setPreviousResponseId(result.responseId);
     } catch (error) {
+      setMessageStatus(userMessage.id, 'failed');
+
       if (error instanceof Error) {
         setChatError(error.message);
       } else {
@@ -259,13 +283,20 @@ export const useChat = () => {
       return;
     }
 
+    // `attachmentsToSend` stores the current pending image as an attachment array so canonical content can stay transport-agnostic.
+    const attachmentsToSend = attachmentToSend !== null ? [attachmentToSend] : [];
+    // `messageContent` stores the canonical content blocks and derived UI fields for the next optimistic user message.
+    const messageContent = createChatContentSnapshot(trimmedMessage, attachmentsToSend);
+
     // `userMessage` stores the new transcript item created from the current draft input.
     const userMessage: ChatMessage = {
-      attachments: attachmentToSend ? [attachmentToSend] : [],
-      content: trimmedMessage,
+      attachments: messageContent.attachments,
+      content: messageContent.text,
+      contentParts: messageContent.parts,
       id: createId(),
       role: 'user',
       responseId: null,
+      status: 'pending',
     };
 
     await sendUserTurn(userMessage, previousResponseId, '', null, messages);
@@ -301,9 +332,11 @@ export const useChat = () => {
         return {
           attachments: message.attachments,
           content: nextContent,
+          contentParts: createChatContentSnapshot(nextContent, message.attachments).parts,
           id: message.id,
           responseId: message.responseId,
           role: message.role,
+          status: message.status,
         };
       })
     );
@@ -385,13 +418,20 @@ export const useChat = () => {
     const baseMessages = messages.slice(0, assistantMessageIndex - 1);
     // `responseIdToUse` stores the assistant response id from the turn before the retried user message.
     const responseIdToUse = findPreviousAssistantResponseId(assistantMessageIndex - 1);
+    // `retriedMessageContent` stores fresh canonical content blocks for the regenerated user turn so retried messages keep independent part ids.
+    const retriedMessageContent = createChatContentSnapshot(
+      previousMessage.content,
+      previousMessage.attachments
+    );
     // `retriedUserMessage` stores a fresh copy of the selected user turn so the regenerated transcript keeps unique ids.
     const retriedUserMessage: ChatMessage = {
-      attachments: previousMessage.attachments,
-      content: previousMessage.content,
+      attachments: retriedMessageContent.attachments,
+      content: retriedMessageContent.text,
+      contentParts: retriedMessageContent.parts,
       id: createId(),
       role: 'user',
       responseId: null,
+      status: 'pending',
     };
 
     await sendUserTurn(
