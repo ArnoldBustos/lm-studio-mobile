@@ -59,24 +59,6 @@ export const ChatComposer = ({
         </View>
       ) : null}
 
-      {pendingAttachment ? (
-        <View style={styles.attachmentPreview}>
-          <Image contentFit="cover" source={{ uri: pendingAttachment.uri }} style={styles.attachmentImage} />
-          <View style={styles.attachmentMeta}>
-            <Text numberOfLines={1} style={styles.attachmentTitle}>
-              {pendingAttachment.fileName}
-            </Text>
-            <Text style={styles.attachmentSubtitle}>
-              {pendingAttachment.width} x {pendingAttachment.height}
-            </Text>
-          </View>
-
-          <Pressable onPress={onRemoveAttachment} style={styles.attachmentRemoveButton}>
-            <Text style={styles.attachmentRemoveButtonText}>Remove</Text>
-          </Pressable>
-        </View>
-      ) : null}
-
       <View style={styles.row}>
         <Pressable
           disabled={!canAttachImage || isPickingImage}
@@ -90,6 +72,28 @@ export const ChatComposer = ({
         </Pressable>
 
         <View style={styles.inputShell}>
+          {pendingAttachment ? (
+            <View style={styles.attachmentPreview}>
+              <Image
+                contentFit="cover"
+                source={{ uri: pendingAttachment.uri }}
+                style={styles.attachmentImage}
+              />
+              <View style={styles.attachmentMeta}>
+                <Text numberOfLines={1} style={styles.attachmentTitle}>
+                  {pendingAttachment.fileName}
+                </Text>
+                <Text style={styles.attachmentSubtitle}>
+                  {pendingAttachment.width} x {pendingAttachment.height}
+                </Text>
+              </View>
+
+              <Pressable onPress={onRemoveAttachment} style={styles.attachmentRemoveButton}>
+                <Text style={styles.attachmentRemoveButtonText}>Remove</Text>
+              </Pressable>
+            </View>
+          ) : null}
+
           <TextInput
             multiline
             onChangeText={onDraftMessageChange}
@@ -194,6 +198,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     borderWidth: 1,
     flex: 1,
+    gap: 10,
     paddingHorizontal: 10,
     paddingVertical: 6,
   },

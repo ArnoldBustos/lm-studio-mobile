@@ -1,6 +1,6 @@
 import {
-  FetchModelsResult,
   ChatAttachment,
+  FetchModelsResult,
   ModelOption,
   SendChatInput,
   SendChatResult,
@@ -31,7 +31,7 @@ type LmStudioChatOutputRecord = {
 
 // `LmStudioChatTextInputRecord` describes one text input item sent to the native LM Studio chat endpoint.
 type LmStudioChatTextInputRecord = {
-  type: 'message';
+  type: 'text';
   content: string;
 };
 
@@ -232,7 +232,7 @@ const buildChatInput = (input: SendChatInput): LmStudioChatInputRecord => {
 
   if (input.text.length > 0) {
     parts.push({
-      type: 'message',
+      type: 'text',
       content: input.text,
     });
   }

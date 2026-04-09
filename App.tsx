@@ -71,8 +71,8 @@ const ChatScreen = () => {
     <SafeAreaView edges={['top']} style={styles.safeArea}>
       <StatusBar style="light" />
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top : 0}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top : insets.bottom}
         style={styles.keyboardContainer}
       >
         <View style={styles.screen}>
