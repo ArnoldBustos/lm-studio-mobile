@@ -179,6 +179,66 @@ export const useChat = () => {
     void connectWithSettings(initialSettings);
   }, [connectWithSettings]);
 
+  // `findPreviousAssistantResponseId` returns the latest assistant response id that appears before a transcript index.
+  const findPreviousAssistantResponseId = (messageIndex: number) => {
+    let currentIndex = messageIndex - 1;
+
+    while (currentIndex >= 0) {
+      // `currentMessage` stores the transcript item inspected during the backward response-id scan.
+      const currentMessage = messages[currentIndex];
+
+      if (currentMessage.role === 'assistant' && typeof currentMessage.responseId === 'string') {
+        return currentMessage.responseId;
+      }
+
+      currentIndex -= 1;
+    }
+
+    return null;
+  };
+
+  // `sendUserTurn` appends one user turn, requests the assistant reply, and updates the response chain state.
+  const sendUserTurn = async (
+    userMessage: ChatMessage,
+    responseIdToUse: string | null,
+    nextDraftMessage: string,
+    nextAttachment: ChatAttachment | null,
+    baseMessages: ChatMessage[]
+  ) => {
+    // `nextMessages` stores the optimistic transcript shown in the UI before the server reply returns.
+    const nextMessages = baseMessages.concat(userMessage);
+
+    setDraftMessage(nextDraftMessage);
+    setChatError('');
+    setEditingMessageId(null);
+    setPendingAttachment(nextAttachment);
+    setMessages(nextMessages);
+    setIsSending(true);
+
+    try {
+      // `result` stores the assistant reply returned by the LM Studio chat transport module.
+      const result = await sendChatMessage(
+        settings,
+        {
+          attachment: userMessage.attachments.length > 0 ? userMessage.attachments[0] : null,
+          text: userMessage.content,
+        },
+        responseIdToUse
+      );
+
+      setMessages((currentMessages) => currentMessages.concat(result.assistantMessage));
+      setPreviousResponseId(result.responseId);
+    } catch (error) {
+      if (error instanceof Error) {
+        setChatError(error.message);
+      } else {
+        setChatError('Unable to send message.');
+      }
+    } finally {
+      setIsSending(false);
+    }
+  };
+
   // `sendMessage` appends a user message, sends the latest input, and appends the assistant reply.
   const sendMessage = async () => {
     // `trimmedMessage` stores the validated draft text before it is added to the transcript.
@@ -205,39 +265,10 @@ export const useChat = () => {
       content: trimmedMessage,
       id: createId(),
       role: 'user',
+      responseId: null,
     };
-    // `nextMessages` stores the optimistic transcript shown in the UI before the server reply returns.
-    const nextMessages = messages.concat(userMessage);
 
-    setDraftMessage('');
-    setChatError('');
-    setEditingMessageId(null);
-    setPendingAttachment(null);
-    setMessages(nextMessages);
-    setIsSending(true);
-
-    try {
-      // `result` stores the assistant reply returned by the LM Studio chat transport module.
-      const result = await sendChatMessage(
-        settings,
-        {
-          attachment: attachmentToSend,
-          text: trimmedMessage,
-        },
-        previousResponseId
-      );
-
-      setMessages((currentMessages) => currentMessages.concat(result.assistantMessage));
-      setPreviousResponseId(result.responseId);
-    } catch (error) {
-      if (error instanceof Error) {
-        setChatError(error.message);
-      } else {
-        setChatError('Unable to send message.');
-      }
-    } finally {
-      setIsSending(false);
-    }
+    await sendUserTurn(userMessage, previousResponseId, '', null, messages);
   };
 
   // `clearChat` removes all transcript items and clears chat-specific error text.
@@ -259,6 +290,26 @@ export const useChat = () => {
   const findMessageIndex = (messageId: string) =>
     messages.findIndex((message) => message.id === messageId);
 
+  // `updateMessageContent` replaces one transcript message content locally so either role can be corrected without resending.
+  const updateMessageContent = (messageId: string, nextContent: string) => {
+    setMessages((currentMessages) =>
+      currentMessages.map((message) => {
+        if (message.id !== messageId) {
+          return message;
+        }
+
+        return {
+          attachments: message.attachments,
+          content: nextContent,
+          id: message.id,
+          responseId: message.responseId,
+          role: message.role,
+        };
+      })
+    );
+    setChatError('');
+  };
+
   // `deleteMessage` removes one transcript item locally and clears server response chaining for future sends.
   const deleteMessage = (messageId: string) => {
     setMessages((currentMessages) => currentMessages.filter((message) => message.id !== messageId));
@@ -270,7 +321,7 @@ export const useChat = () => {
     }
   };
 
-  // `rewindToMessage` truncates the transcript at the selected message and clears server response chaining.
+  // `rewindToMessage` truncates the transcript at the selected message and restores the prior response chain when available.
   const rewindToMessage = (messageId: string) => {
     const messageIndex = findMessageIndex(messageId);
 
@@ -281,7 +332,7 @@ export const useChat = () => {
     setMessages((currentMessages) => currentMessages.slice(0, messageIndex));
     setChatError('');
     setEditingMessageId(null);
-    setPreviousResponseId(null);
+    setPreviousResponseId(findPreviousAssistantResponseId(messageIndex));
   };
 
   // `startEditingMessage` removes the selected user message and later messages, then loads its text into the composer.
@@ -303,7 +354,53 @@ export const useChat = () => {
     setChatError('');
     setEditingMessageId(messageId);
     setPendingAttachment(targetMessage.attachments.length > 0 ? targetMessage.attachments[0] : null);
-    setPreviousResponseId(null);
+    setPreviousResponseId(findPreviousAssistantResponseId(messageIndex));
+  };
+
+  // `retryAssistantMessage` removes one assistant reply and later turns, then regenerates the selected reply from the preceding user turn.
+  const retryAssistantMessage = async (messageId: string) => {
+    // `assistantMessageIndex` stores the transcript location of the assistant reply being regenerated.
+    const assistantMessageIndex = findMessageIndex(messageId);
+
+    if (assistantMessageIndex < 1 || isSending) {
+      return;
+    }
+
+    // `targetMessage` stores the selected transcript item used to validate that retry applies to an assistant reply.
+    const targetMessage = messages[assistantMessageIndex];
+
+    if (targetMessage.role !== 'assistant') {
+      return;
+    }
+
+    // `previousMessage` stores the user turn immediately before the selected assistant reply.
+    const previousMessage = messages[assistantMessageIndex - 1];
+
+    if (previousMessage.role !== 'user') {
+      setChatError('Retry is only available when an assistant reply follows a user message.');
+      return;
+    }
+
+    // `baseMessages` stores the transcript kept before the retried user turn so the regenerated reply replaces that branch.
+    const baseMessages = messages.slice(0, assistantMessageIndex - 1);
+    // `responseIdToUse` stores the assistant response id from the turn before the retried user message.
+    const responseIdToUse = findPreviousAssistantResponseId(assistantMessageIndex - 1);
+    // `retriedUserMessage` stores a fresh copy of the selected user turn so the regenerated transcript keeps unique ids.
+    const retriedUserMessage: ChatMessage = {
+      attachments: previousMessage.attachments,
+      content: previousMessage.content,
+      id: createId(),
+      role: 'user',
+      responseId: null,
+    };
+
+    await sendUserTurn(
+      retriedUserMessage,
+      responseIdToUse,
+      draftMessage,
+      pendingAttachment,
+      baseMessages
+    );
   };
 
   // `cancelEditingMessage` exits edit mode without clearing the current composer text.
@@ -408,6 +505,7 @@ export const useChat = () => {
     pickImageAttachment,
     removePendingAttachment,
     rewindToMessage,
+    retryAssistantMessage,
     sendMessage,
     selectedModelSupportsImages,
     startEditingMessage,
@@ -417,5 +515,6 @@ export const useChat = () => {
     setDraftMessage,
     setModel,
     settings,
+    updateMessageContent,
   };
 };

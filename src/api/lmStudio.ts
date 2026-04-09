@@ -351,6 +351,7 @@ export const sendChatMessage = async (
       content: assistantResult.content,
       id: createId(),
       role: 'assistant',
+      responseId: assistantResult.responseId,
     },
     responseId: assistantResult.responseId,
   };

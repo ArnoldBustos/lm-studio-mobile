@@ -15,6 +15,7 @@ import {
 import { buildModelsEndpoint } from './src/api/lmStudio';
 import { ChatComposer } from './src/components/ChatComposer';
 import { ChatHeader } from './src/components/ChatHeader';
+import { EditMessageModal } from './src/components/EditMessageModal';
 import { MessageActionSheet } from './src/components/MessageActionSheet';
 import { MessageList } from './src/components/MessageList';
 import { SettingsModal } from './src/components/SettingsModal';
@@ -31,6 +32,8 @@ const ChatScreen = () => {
   const [isSettingsModalVisible, setIsSettingsModalVisible] = React.useState(false);
   // `selectedMessage` stores the transcript item currently targeted by the shared message action sheet.
   const [selectedMessage, setSelectedMessage] = React.useState<ChatMessage | null>(null);
+  // `editingModalMessage` stores the transcript item currently being edited inside the dedicated edit modal.
+  const [editingModalMessage, setEditingModalMessage] = React.useState<ChatMessage | null>(null);
   // `modelsDebugEndpoint` stores the exact models URL shown by the temporary debug block.
   const modelsDebugEndpoint =
     chat.settings.baseUrl.trim().length > 0 ? buildModelsEndpoint(chat.settings.baseUrl) : '';
@@ -58,13 +61,28 @@ const ChatScreen = () => {
   const handleDeleteMessage = (message: ChatMessage) => {
     chat.deleteMessage(message.id);
   };
-  // `handleEditMessage` rewinds to a selected user message and loads it back into the composer.
+  // `handleEditMessage` opens the dedicated edit modal for the selected transcript message.
   const handleEditMessage = (message: ChatMessage) => {
-    chat.startEditingMessage(message.id);
+    closeMessageActions();
+    setEditingModalMessage(message);
   };
   // `handleRewindMessage` truncates the transcript at the selected user message.
   const handleRewindMessage = (message: ChatMessage) => {
     chat.rewindToMessage(message.id);
+  };
+  // `handleCloseEditModal` clears the selected edit target and hides the dedicated edit modal.
+  const handleCloseEditModal = () => {
+    setEditingModalMessage(null);
+  };
+  // `handleSaveEditedMessage` applies a local transcript edit and then closes the dedicated edit modal.
+  const handleSaveEditedMessage = (messageId: string, nextContent: string) => {
+    chat.updateMessageContent(messageId, nextContent);
+    handleCloseEditModal();
+  };
+  // `handleRetryMessage` regenerates the selected assistant reply and closes the shared action sheet.
+  const handleRetryMessage = (message: ChatMessage) => {
+    closeMessageActions();
+    void chat.retryAssistantMessage(message.id);
   };
 
   return (
@@ -139,7 +157,15 @@ const ChatScreen = () => {
         onCopy={handleCopyMessage}
         onDelete={handleDeleteMessage}
         onEdit={handleEditMessage}
+        onRetry={handleRetryMessage}
         onRewind={handleRewindMessage}
+      />
+
+      <EditMessageModal
+        message={editingModalMessage}
+        visible={editingModalMessage !== null}
+        onClose={handleCloseEditModal}
+        onSave={handleSaveEditedMessage}
       />
     </SafeAreaView>
   );

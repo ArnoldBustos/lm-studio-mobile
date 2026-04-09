@@ -27,6 +27,7 @@ type MessageActionSheetProps = {
   onCopy: (message: ChatMessage) => void;
   onDelete: (message: ChatMessage) => void;
   onEdit: (message: ChatMessage) => void;
+  onRetry: (message: ChatMessage) => void;
   onRewind: (message: ChatMessage) => void;
 };
 
@@ -38,12 +39,15 @@ export const MessageActionSheet = ({
   onCopy,
   onDelete,
   onEdit,
+  onRetry,
   onRewind,
 }: MessageActionSheetProps) => {
   // `insets` stores the current safe area values so the modal sheet clears the system navigation area.
   const insets = useSafeAreaInsets();
   // `isUserMessage` marks user-authored messages that support edit and rewind actions.
   const isUserMessage = message ? message.role === 'user' : false;
+  // `isAssistantMessage` marks assistant-authored messages that support retry actions.
+  const isAssistantMessage = message ? message.role === 'assistant' : false;
   // `previewText` stores the compact preview text shown at the top of the action sheet for text-only and image-only messages.
   const previewText =
     message && message.content.length > 0
@@ -60,14 +64,13 @@ export const MessageActionSheet = ({
     onCopy(message);
     onClose();
   };
-  // `handleEditPress` runs the edit action for the selected user message and then closes the sheet.
+  // `handleEditPress` forwards the selected transcript message to the higher-level edit controller.
   const handleEditPress = () => {
-    if (!message || !isUserMessage) {
+    if (!message) {
       return;
     }
 
     onEdit(message);
-    onClose();
   };
   // `handleDeletePress` runs the delete action for the selected message and then closes the sheet.
   const handleDeletePress = () => {
@@ -87,6 +90,14 @@ export const MessageActionSheet = ({
     onRewind(message);
     onClose();
   };
+  // `handleRetryPress` forwards the selected assistant message to the higher-level retry controller.
+  const handleRetryPress = () => {
+    if (!message || !isAssistantMessage) {
+      return;
+    }
+
+    onRetry(message);
+  };
   // `actionOptions` stores the visible menu rows and their enabled states for the selected message.
   const actionOptions: MessageActionOption[] = [
     {
@@ -97,8 +108,13 @@ export const MessageActionSheet = ({
     {
       key: 'edit',
       label: 'Edit',
-      isDisabled: !isUserMessage,
       onPress: handleEditPress,
+    },
+    {
+      key: 'retry',
+      label: 'Retry',
+      isDisabled: !isAssistantMessage,
+      onPress: handleRetryPress,
     },
     {
       key: 'delete',

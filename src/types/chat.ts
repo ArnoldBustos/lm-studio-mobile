@@ -22,6 +22,7 @@ export type ChatMessage = {
   role: ChatRole;
   content: string;
   attachments: ChatAttachment[];
+  responseId: string | null;
 };
 
 // `ServerSettings` stores the connection settings collected by the server settings form.
