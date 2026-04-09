@@ -1,4 +1,5 @@
 import { getAttachmentsFromContentParts, getTextFromContentParts } from '../../domain/chatContent';
+import { createChatMessageFromParts } from '../../domain/chatMessages';
 import {
   ChatAttachment,
   FetchModelsResult,
@@ -8,9 +9,6 @@ import {
   ServerSettings,
 } from '../../types/chat';
 import { ChatProviderAdapter, ChatProviderSendRequest } from './types';
-
-// `createId` generates a lightweight local identifier for assistant transcript messages created by the native LM Studio provider.
-const createId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 
 // `normalizeBaseUrl` trims whitespace and removes trailing slashes before native LM Studio endpoint construction.
 export const normalizeBaseUrl = (baseUrl: string) => baseUrl.trim().replace(/\/+$/, '');
@@ -351,21 +349,18 @@ const sendNativeMessage = async ({
   const assistantResult = extractAssistantMessage(data);
 
   return {
-    assistantMessage: {
-      attachments: [],
-      content: assistantResult.content,
+    assistantMessage: createChatMessageFromParts({
       contentParts: [
         {
-          id: createId(),
+          id: `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
           text: assistantResult.content,
           type: 'text',
         },
       ],
-      id: createId(),
       responseId: assistantResult.responseId,
       role: 'assistant',
       status: 'sent',
-    },
+    }),
     responseId: assistantResult.responseId,
   };
 };

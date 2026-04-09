@@ -4,15 +4,16 @@ import * as Clipboard from 'expo-clipboard';
 import { sendChatMessage } from '../api/lmStudio';
 import {
   createChatContentSnapshot,
-  createChatContentSnapshotFromParts,
   getAttachmentsFromContentParts,
   getCopyableTextFromContentParts,
   getEditableTextFromContentParts,
 } from '../domain/chatContent';
+import {
+  createChatMessageFromText,
+  updateChatMessageContentParts,
+  updateChatMessageStatus,
+} from '../domain/chatMessages';
 import { ChatAttachment, ChatMessage, ServerSettings } from '../types/chat';
-
-// `createMessageId` generates lightweight identifiers for optimistic transcript messages created inside the session hook.
-const createMessageId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 
 // `UseChatSessionArgs` describes the draft and connection values the session hook coordinates with when sending transcript turns.
 type UseChatSessionArgs = {
@@ -94,18 +95,7 @@ export const useChatSession = ({
           return message;
         }
 
-        // `messageSnapshot` stores compatibility text and attachments rebuilt from canonical content parts while only the status changes.
-        const messageSnapshot = createChatContentSnapshotFromParts(message.contentParts);
-
-        return {
-          attachments: messageSnapshot.attachments,
-          content: messageSnapshot.text,
-          contentParts: messageSnapshot.parts,
-          id: message.id,
-          responseId: message.responseId,
-          role: message.role,
-          status: nextStatus,
-        };
+        return updateChatMessageStatus(message, nextStatus);
       })
     );
   };
@@ -171,18 +161,14 @@ export const useChatSession = ({
       return;
     }
 
-    // `messageContent` stores the canonical content blocks and derived UI fields for the next optimistic user message.
-    const messageContent = createChatContentSnapshot(trimmedMessage, draftAttachments);
     // `userMessage` stores the new transcript item created from the current draft input.
-    const userMessage: ChatMessage = {
-      attachments: messageContent.attachments,
-      content: messageContent.text,
-      contentParts: messageContent.parts,
-      id: createMessageId(),
-      role: 'user',
+    const userMessage = createChatMessageFromText({
+      attachments: draftAttachments,
       responseId: null,
+      role: 'user',
       status: 'pending',
-    };
+      text: trimmedMessage,
+    });
 
     await sendUserTurn(userMessage, previousResponseId, '', [], messages);
   };
@@ -219,15 +205,7 @@ export const useChatSession = ({
           getAttachmentsFromContentParts(message.contentParts)
         );
 
-        return {
-          attachments: nextContentSnapshot.attachments,
-          content: nextContentSnapshot.text,
-          contentParts: nextContentSnapshot.parts,
-          id: message.id,
-          responseId: message.responseId,
-          role: message.role,
-          status: message.status,
-        };
+        return updateChatMessageContentParts(message, nextContentSnapshot.parts);
       })
     );
     setChatError('');
@@ -317,15 +295,12 @@ export const useChatSession = ({
       getAttachmentsFromContentParts(previousMessage.contentParts)
     );
     // `retriedUserMessage` stores a fresh copy of the selected user turn so the regenerated transcript keeps unique ids.
-    const retriedUserMessage: ChatMessage = {
-      attachments: retriedMessageContent.attachments,
-      content: retriedMessageContent.text,
+    const retriedUserMessage = createChatMessageFromParts({
       contentParts: retriedMessageContent.parts,
-      id: createMessageId(),
-      role: 'user',
       responseId: null,
+      role: 'user',
       status: 'pending',
-    };
+    });
 
     await sendUserTurn(
       retriedUserMessage,
