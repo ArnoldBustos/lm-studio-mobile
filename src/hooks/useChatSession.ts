@@ -2,7 +2,13 @@ import React from 'react';
 import * as Clipboard from 'expo-clipboard';
 
 import { sendChatMessage } from '../api/lmStudio';
-import { createChatContentSnapshot } from '../domain/chatContent';
+import {
+  createChatContentSnapshot,
+  createChatContentSnapshotFromParts,
+  getAttachmentsFromContentParts,
+  getCopyableTextFromContentParts,
+  getEditableTextFromContentParts,
+} from '../domain/chatContent';
 import { ChatAttachment, ChatMessage, ServerSettings } from '../types/chat';
 
 // `createMessageId` generates lightweight identifiers for optimistic transcript messages created inside the session hook.
@@ -88,10 +94,13 @@ export const useChatSession = ({
           return message;
         }
 
+        // `messageSnapshot` stores compatibility text and attachments rebuilt from canonical content parts while only the status changes.
+        const messageSnapshot = createChatContentSnapshotFromParts(message.contentParts);
+
         return {
-          attachments: message.attachments,
-          content: message.content,
-          contentParts: message.contentParts,
+          attachments: messageSnapshot.attachments,
+          content: messageSnapshot.text,
+          contentParts: messageSnapshot.parts,
           id: message.id,
           responseId: message.responseId,
           role: message.role,
@@ -189,7 +198,7 @@ export const useChatSession = ({
 
   // `copyMessage` copies the selected transcript message content to the device clipboard.
   const copyMessage = async (message: ChatMessage) => {
-    await Clipboard.setStringAsync(message.content);
+    await Clipboard.setStringAsync(getCopyableTextFromContentParts(message.contentParts));
   };
 
   // `findMessageIndex` returns the transcript index for the selected message id or `-1` when it is missing.
@@ -204,10 +213,16 @@ export const useChatSession = ({
           return message;
         }
 
+        // `nextContentSnapshot` stores canonical content plus compatibility fields rebuilt from the edited text and the message's canonical attachments.
+        const nextContentSnapshot = createChatContentSnapshot(
+          nextContent,
+          getAttachmentsFromContentParts(message.contentParts)
+        );
+
         return {
-          attachments: message.attachments,
-          content: nextContent,
-          contentParts: createChatContentSnapshot(nextContent, message.attachments).parts,
+          attachments: nextContentSnapshot.attachments,
+          content: nextContentSnapshot.text,
+          contentParts: nextContentSnapshot.parts,
           id: message.id,
           responseId: message.responseId,
           role: message.role,
@@ -259,7 +274,10 @@ export const useChatSession = ({
     }
 
     setMessages((currentMessages) => currentMessages.slice(0, messageIndex));
-    replaceDraft(targetMessage.content, targetMessage.attachments);
+    replaceDraft(
+      getEditableTextFromContentParts(targetMessage.contentParts),
+      getAttachmentsFromContentParts(targetMessage.contentParts)
+    );
     setChatError('');
     setEditingMessageId(messageId);
     setPreviousResponseId(findPreviousAssistantResponseId(messageIndex));
@@ -295,8 +313,8 @@ export const useChatSession = ({
     const responseIdToUse = findPreviousAssistantResponseId(assistantMessageIndex - 1);
     // `retriedMessageContent` stores fresh canonical content blocks for the regenerated user turn so retried messages keep independent part ids.
     const retriedMessageContent = createChatContentSnapshot(
-      previousMessage.content,
-      previousMessage.attachments
+      getEditableTextFromContentParts(previousMessage.contentParts),
+      getAttachmentsFromContentParts(previousMessage.contentParts)
     );
     // `retriedUserMessage` stores a fresh copy of the selected user turn so the regenerated transcript keeps unique ids.
     const retriedUserMessage: ChatMessage = {

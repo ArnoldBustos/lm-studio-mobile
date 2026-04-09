@@ -9,6 +9,10 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import {
+  getAttachmentsFromContentParts,
+  getEditableTextFromContentParts,
+} from '../domain/chatContent';
 import { ChatMessage } from '../types/chat';
 
 // `EditMessageModalProps` defines the selected message and callbacks used by the transcript edit modal.
@@ -37,7 +41,7 @@ export const EditMessageModal = ({
       return;
     }
 
-    setDraftValue(message.content);
+    setDraftValue(getEditableTextFromContentParts(message.contentParts));
   }, [message]);
 
   // `trimmedValue` stores the save-ready edit text used for validation and persistence.
@@ -45,7 +49,7 @@ export const EditMessageModal = ({
   // `canSave` indicates whether the current edit contains content or preserves an attachment-only message.
   const canSave =
     message !== null &&
-    (trimmedValue.length > 0 || message.attachments.length > 0);
+    (trimmedValue.length > 0 || getAttachmentsFromContentParts(message.contentParts).length > 0);
 
   // `handleSavePress` applies the local content edit when the modal contains a valid target and value.
   const handleSavePress = () => {

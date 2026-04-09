@@ -21,7 +21,7 @@ export type ChatMessageStatus = 'pending' | 'sent' | 'failed';
 // `ConnectionState` defines the connection lifecycle shown by the header and managed by the chat hook.
 export type ConnectionState = 'idle' | 'connecting' | 'connected' | 'error';
 
-// `ChatMessage` represents one transcript item whose `contentParts` are canonical while `content` and `attachments` remain temporary compatibility fields for untouched consumers.
+// `ChatMessage` represents one transcript item whose `contentParts` are canonical while `content` and `attachments` remain transitional compatibility output for older consumers.
 export type ChatMessage = {
   id: string;
   role: ChatRole;

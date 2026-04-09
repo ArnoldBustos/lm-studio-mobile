@@ -50,6 +50,14 @@ export const getTextFromContentParts = (parts: ChatContentPart[]) =>
     .map((part) => part.text)
     .join('\n\n');
 
+// `getEditableTextFromContentParts` derives the editable text value used by local transcript editing flows from canonical content blocks.
+export const getEditableTextFromContentParts = (parts: ChatContentPart[]) =>
+  getTextFromContentParts(parts);
+
+// `getCopyableTextFromContentParts` derives the clipboard-ready text value used by local copy flows from canonical content blocks.
+export const getCopyableTextFromContentParts = (parts: ChatContentPart[]) =>
+  getTextFromContentParts(parts);
+
 // `getAttachmentsFromContentParts` derives the attachment array still consumed by the current chat UI from canonical content blocks.
 export const getAttachmentsFromContentParts = (parts: ChatContentPart[]) =>
   parts
@@ -81,6 +89,13 @@ export const getPreviewTextFromContentParts = (parts: ChatContentPart[]) => {
 
   return '';
 };
+
+// `createChatContentSnapshotFromParts` rebuilds the compatibility text and attachment fields from canonical content blocks for transitional message state.
+export const createChatContentSnapshotFromParts = (parts: ChatContentPart[]): ChatContentSnapshot => ({
+  attachments: getAttachmentsFromContentParts(parts),
+  parts,
+  text: getTextFromContentParts(parts),
+});
 
 // `createChatContentSnapshot` builds canonical content blocks and the legacy derived fields from text plus attachments for the current single-screen chat flow.
 export const createChatContentSnapshot = (
