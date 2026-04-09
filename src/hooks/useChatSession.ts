@@ -9,6 +9,7 @@ import {
   getEditableTextFromContentParts,
 } from '../domain/chatContent';
 import {
+  createChatMessageFromParts,
   createChatMessageFromText,
   updateChatMessageContentParts,
   updateChatMessageStatus,
@@ -39,7 +40,7 @@ export type UseChatSessionResult = {
   rewindToMessage: (messageId: string) => void;
   startEditingMessage: (messageId: string) => void;
   cancelEditingMessage: () => void;
-  retryAssistantMessage: (messageId: string) => Promise<void>;
+  retryMessage: (messageId: string) => Promise<void>;
   sendMessage: () => Promise<void>;
   clearChatError: () => void;
 };
@@ -97,6 +98,67 @@ export const useChatSession = ({
 
         return updateChatMessageStatus(message, nextStatus);
       })
+    );
+  };
+
+  // `retryUserMessage` removes a failed user message branch and resends that user turn from its canonical content.
+  const retryUserMessage = async (messageIndex: number) => {
+    // `failedUserMessage` stores the failed user turn being resent from the transcript.
+    const failedUserMessage = messages[messageIndex];
+    // `baseMessages` stores the transcript kept before the failed user turn so the resent branch replaces it.
+    const baseMessages = messages.slice(0, messageIndex);
+    // `responseIdToUse` stores the assistant response id from the turn before the failed user message.
+    const responseIdToUse = findPreviousAssistantResponseId(messageIndex);
+    // `retriedUserMessage` stores a fresh copy of the failed user turn so the resent transcript keeps a clean pending lifecycle.
+    const retriedUserMessage = createChatMessageFromParts({
+      contentParts: failedUserMessage.contentParts,
+      responseId: null,
+      role: 'user',
+      status: 'pending',
+    });
+
+    await sendUserTurn(
+      retriedUserMessage,
+      responseIdToUse,
+      draftMessage,
+      draftAttachments,
+      baseMessages
+    );
+  };
+
+  // `retryAssistantBranch` removes one assistant reply branch and regenerates it from the preceding user turn.
+  const retryAssistantBranch = async (assistantMessageIndex: number) => {
+    // `previousMessage` stores the user turn immediately before the selected assistant reply.
+    const previousMessage = messages[assistantMessageIndex - 1];
+
+    if (previousMessage.role !== 'user') {
+      setChatError('Retry is only available when an assistant reply follows a user message.');
+      return;
+    }
+
+    // `baseMessages` stores the transcript kept before the retried user turn so the regenerated reply replaces that branch.
+    const baseMessages = messages.slice(0, assistantMessageIndex - 1);
+    // `responseIdToUse` stores the assistant response id from the turn before the retried user message.
+    const responseIdToUse = findPreviousAssistantResponseId(assistantMessageIndex - 1);
+    // `retriedMessageContent` stores fresh canonical content blocks for the regenerated user turn so retried messages keep independent part ids.
+    const retriedMessageContent = createChatContentSnapshot(
+      getEditableTextFromContentParts(previousMessage.contentParts),
+      getAttachmentsFromContentParts(previousMessage.contentParts)
+    );
+    // `retriedUserMessage` stores a fresh copy of the selected user turn so the regenerated transcript keeps unique ids.
+    const retriedUserMessage = createChatMessageFromParts({
+      contentParts: retriedMessageContent.parts,
+      responseId: null,
+      role: 'user',
+      status: 'pending',
+    });
+
+    await sendUserTurn(
+      retriedUserMessage,
+      responseIdToUse,
+      draftMessage,
+      draftAttachments,
+      baseMessages
     );
   };
 
@@ -261,54 +323,28 @@ export const useChatSession = ({
     setPreviousResponseId(findPreviousAssistantResponseId(messageIndex));
   };
 
-  // `retryAssistantMessage` removes one assistant reply and later turns, then regenerates the selected reply from the preceding user turn.
-  const retryAssistantMessage = async (messageId: string) => {
-    // `assistantMessageIndex` stores the transcript location of the assistant reply being regenerated.
-    const assistantMessageIndex = findMessageIndex(messageId);
+  // `retryMessage` retries either a failed user message or an assistant reply branch from the current transcript.
+  const retryMessage = async (messageId: string) => {
+    // `messageIndex` stores the transcript location of the selected message being retried.
+    const messageIndex = findMessageIndex(messageId);
 
-    if (assistantMessageIndex < 1 || isSending) {
+    if (messageIndex < 0 || isSending) {
       return;
     }
 
-    // `targetMessage` stores the selected transcript item used to validate that retry applies to an assistant reply.
-    const targetMessage = messages[assistantMessageIndex];
+    // `targetMessage` stores the selected transcript item used to decide which retry path applies.
+    const targetMessage = messages[messageIndex];
 
-    if (targetMessage.role !== 'assistant') {
+    if (targetMessage.role === 'user' && targetMessage.status === 'failed') {
+      await retryUserMessage(messageIndex);
       return;
     }
 
-    // `previousMessage` stores the user turn immediately before the selected assistant reply.
-    const previousMessage = messages[assistantMessageIndex - 1];
-
-    if (previousMessage.role !== 'user') {
-      setChatError('Retry is only available when an assistant reply follows a user message.');
+    if (targetMessage.role !== 'assistant' || messageIndex < 1) {
       return;
     }
 
-    // `baseMessages` stores the transcript kept before the retried user turn so the regenerated reply replaces that branch.
-    const baseMessages = messages.slice(0, assistantMessageIndex - 1);
-    // `responseIdToUse` stores the assistant response id from the turn before the retried user message.
-    const responseIdToUse = findPreviousAssistantResponseId(assistantMessageIndex - 1);
-    // `retriedMessageContent` stores fresh canonical content blocks for the regenerated user turn so retried messages keep independent part ids.
-    const retriedMessageContent = createChatContentSnapshot(
-      getEditableTextFromContentParts(previousMessage.contentParts),
-      getAttachmentsFromContentParts(previousMessage.contentParts)
-    );
-    // `retriedUserMessage` stores a fresh copy of the selected user turn so the regenerated transcript keeps unique ids.
-    const retriedUserMessage = createChatMessageFromParts({
-      contentParts: retriedMessageContent.parts,
-      responseId: null,
-      role: 'user',
-      status: 'pending',
-    });
-
-    await sendUserTurn(
-      retriedUserMessage,
-      responseIdToUse,
-      draftMessage,
-      draftAttachments,
-      baseMessages
-    );
+    await retryAssistantBranch(messageIndex);
   };
 
   // `cancelEditingMessage` exits composer-based edit mode without clearing the current draft state.
@@ -326,7 +362,7 @@ export const useChatSession = ({
     editingMessageId,
     isSending,
     messages,
-    retryAssistantMessage,
+    retryMessage,
     rewindToMessage,
     sendMessage,
     setChatError,

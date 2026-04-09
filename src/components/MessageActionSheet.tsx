@@ -49,6 +49,11 @@ export const MessageActionSheet = ({
   const isUserMessage = message ? message.role === 'user' : false;
   // `isAssistantMessage` marks assistant-authored messages that support retry actions.
   const isAssistantMessage = message ? message.role === 'assistant' : false;
+  // `isFailedUserMessage` marks failed user turns that support resending from the shared action sheet.
+  const isFailedUserMessage =
+    message ? message.role === 'user' && message.status === 'failed' : false;
+  // `canRetryMessage` marks transcript messages that currently support retry from the shared action sheet.
+  const canRetryMessage = isAssistantMessage || isFailedUserMessage;
   // `previewText` stores the compact preview text derived from canonical content parts for the action sheet header.
   const previewText =
     message !== null ? getPreviewTextFromContentParts(message.contentParts) : '';
@@ -87,9 +92,9 @@ export const MessageActionSheet = ({
     onRewind(message);
     onClose();
   };
-  // `handleRetryPress` forwards the selected assistant message to the higher-level retry controller.
+  // `handleRetryPress` forwards the selected retryable message to the higher-level retry controller.
   const handleRetryPress = () => {
-    if (!message || !isAssistantMessage) {
+    if (!message || !canRetryMessage) {
       return;
     }
 
@@ -110,7 +115,7 @@ export const MessageActionSheet = ({
     {
       key: 'retry',
       label: 'Retry',
-      isDisabled: !isAssistantMessage,
+      isDisabled: !canRetryMessage,
       onPress: handleRetryPress,
     },
     {

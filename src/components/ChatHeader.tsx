@@ -1,4 +1,5 @@
 import React from 'react';
+import { Ionicons } from '@expo/vector-icons';
 import {
   Pressable,
   StyleSheet,
@@ -79,8 +80,12 @@ export const ChatHeader = ({
           <Text style={styles.connectButtonText}>{isConnecting ? '...' : 'Connect'}</Text>
         </Pressable>
 
-        <Pressable onPress={onOpenSettings} style={styles.settingsButton}>
-          <Text style={styles.settingsButtonText}>Gear</Text>
+        <Pressable
+          accessibilityLabel="Open settings"
+          onPress={onOpenSettings}
+          style={styles.settingsButton}
+        >
+          <Ionicons color="#dbe4ee" name="settings-sharp" size={18} />
         </Pressable>
       </View>
     </View>
@@ -176,13 +181,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#1b2430',
     borderRadius: 10,
-    minWidth: 64,
-    paddingHorizontal: 12,
+    justifyContent: 'center',
+    minHeight: 42,
+    minWidth: 42,
+    paddingHorizontal: 10,
     paddingVertical: 10,
-  },
-  settingsButtonText: {
-    color: '#dbe4ee',
-    fontSize: 13,
-    fontWeight: '600',
   },
 });

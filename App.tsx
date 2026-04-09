@@ -37,7 +37,7 @@ const ChatScreen = () => {
   // `modelsDebugEndpoint` stores the exact models URL shown by the temporary debug block.
   const modelsDebugEndpoint =
     chat.settings.baseUrl.trim().length > 0 ? buildModelsEndpoint(chat.settings.baseUrl) : '';
-  // `openSettingsModal` shows the settings modal from the compact top bar gear action.
+  // `openSettingsModal` shows the settings modal from the compact top bar settings icon action.
   const openSettingsModal = () => {
     setIsSettingsModalVisible(true);
   };
@@ -79,10 +79,10 @@ const ChatScreen = () => {
     chat.updateMessageContent(messageId, nextContent);
     handleCloseEditModal();
   };
-  // `handleRetryMessage` regenerates the selected assistant reply and closes the shared action sheet.
+  // `handleRetryMessage` retries the selected assistant branch or failed user turn and closes the shared action sheet.
   const handleRetryMessage = (message: ChatMessage) => {
     closeMessageActions();
-    void chat.retryAssistantMessage(message.id);
+    void chat.retryMessage(message.id);
   };
 
   return (

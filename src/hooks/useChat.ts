@@ -261,7 +261,7 @@ export const useChat = () => {
     pickImageAttachment,
     removePendingAttachment,
     rewindToMessage: session.rewindToMessage,
-    retryAssistantMessage: session.retryAssistantMessage,
+    retryMessage: session.retryMessage,
     sendMessage: session.sendMessage,
     selectedModelSupportsImages,
     startEditingMessage: session.startEditingMessage,
