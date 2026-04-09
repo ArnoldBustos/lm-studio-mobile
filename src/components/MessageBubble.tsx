@@ -7,6 +7,10 @@ import {
   View,
 } from 'react-native';
 
+import {
+  getFirstImageAttachmentFromContentParts,
+  getTextFromContentParts,
+} from '../domain/chatContent';
 import { ChatMessage } from '../types/chat';
 
 // `MessageBubbleProps` defines the transcript item shown by the message list.
@@ -19,8 +23,10 @@ type MessageBubbleProps = {
 export const MessageBubble = ({ message, onOpenActions }: MessageBubbleProps) => {
   // `isUserMessage` marks messages authored by the local user for alignment and color changes.
   const isUserMessage = message.role === 'user';
-  // `imageAttachment` stores the first image attachment shown inline with the message bubble.
-  const imageAttachment = message.attachments.length > 0 ? message.attachments[0] : null;
+  // `imageAttachment` stores the first canonical image block shown inline with the current one-image message bubble.
+  const imageAttachment = getFirstImageAttachmentFromContentParts(message.contentParts);
+  // `messageText` stores the canonical text content shown inside the current message bubble.
+  const messageText = getTextFromContentParts(message.contentParts);
   // `handleLongPress` forwards the pressed message to the higher-level action menu controller.
   const handleLongPress = () => {
     onOpenActions(message);
@@ -39,7 +45,7 @@ export const MessageBubble = ({ message, onOpenActions }: MessageBubbleProps) =>
         {imageAttachment ? (
           <Image contentFit="cover" source={{ uri: imageAttachment.uri }} style={styles.attachmentImage} />
         ) : null}
-        {message.content.length > 0 ? <Text style={styles.content}>{message.content}</Text> : null}
+        {messageText.length > 0 ? <Text style={styles.content}>{messageText}</Text> : null}
       </Pressable>
     </View>
   );

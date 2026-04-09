@@ -56,6 +56,32 @@ export const getAttachmentsFromContentParts = (parts: ChatContentPart[]) =>
     .filter((part): part is ChatImageAttachmentContentPart => part.type === 'image_attachment')
     .map((part) => part.attachment);
 
+// `getFirstImageAttachmentFromContentParts` derives the first image attachment still shown by the current one-image chat UI from canonical content blocks.
+export const getFirstImageAttachmentFromContentParts = (parts: ChatContentPart[]) => {
+  // `imageAttachmentPart` stores the first canonical image block used by the current message renderer.
+  const imageAttachmentPart =
+    parts.find((part): part is ChatImageAttachmentContentPart => part.type === 'image_attachment') ||
+    null;
+
+  return imageAttachmentPart ? imageAttachmentPart.attachment : null;
+};
+
+// `getPreviewTextFromContentParts` derives the compact text preview used by current message surfaces from canonical content blocks.
+export const getPreviewTextFromContentParts = (parts: ChatContentPart[]) => {
+  // `textPreview` stores the concatenated text currently shown by transcript bubbles and action-sheet previews.
+  const textPreview = getTextFromContentParts(parts);
+
+  if (textPreview.length > 0) {
+    return textPreview;
+  }
+
+  if (getFirstImageAttachmentFromContentParts(parts) !== null) {
+    return 'Image attachment';
+  }
+
+  return '';
+};
+
 // `createChatContentSnapshot` builds canonical content blocks and the legacy derived fields from text plus attachments for the current single-screen chat flow.
 export const createChatContentSnapshot = (
   text: string,

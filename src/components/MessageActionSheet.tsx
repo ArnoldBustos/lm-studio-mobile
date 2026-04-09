@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { getPreviewTextFromContentParts } from '../domain/chatContent';
 import { ChatMessage } from '../types/chat';
 
 // `MessageActionOption` defines one visible action row shown inside the message action sheet.
@@ -48,13 +49,9 @@ export const MessageActionSheet = ({
   const isUserMessage = message ? message.role === 'user' : false;
   // `isAssistantMessage` marks assistant-authored messages that support retry actions.
   const isAssistantMessage = message ? message.role === 'assistant' : false;
-  // `previewText` stores the compact preview text shown at the top of the action sheet for text-only and image-only messages.
+  // `previewText` stores the compact preview text derived from canonical content parts for the action sheet header.
   const previewText =
-    message && message.content.length > 0
-      ? message.content
-      : message && message.attachments.length > 0
-        ? 'Image attachment'
-        : '';
+    message !== null ? getPreviewTextFromContentParts(message.contentParts) : '';
   // `handleCopyPress` runs the copy action for the selected message and then closes the sheet.
   const handleCopyPress = () => {
     if (!message) {
