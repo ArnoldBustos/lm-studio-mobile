@@ -7,6 +7,10 @@
     "icon": "./assets/images/icon.png",
     "scheme": "lmstudiomobile",
     "userInterfaceStyle": "automatic",
+    "androidNavigationBar": {
+      "backgroundColor": "#0b0f14",
+      "barStyle": "light-content"
+    },
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true

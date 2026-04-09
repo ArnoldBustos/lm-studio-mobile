@@ -46,63 +46,86 @@ export const SettingsModal = ({
   onFetchModels,
   onClearChat,
   onClose,
-}: SettingsModalProps) => (
-  <Modal
-    animationType="slide"
-    onRequestClose={onClose}
-    presentationStyle="pageSheet"
-    transparent={false}
-    visible={visible}
-  >
-    <SafeAreaView edges={['top', 'bottom']} style={styles.safeArea}>
-      <View style={styles.header}>
-        <View style={styles.headerTextBlock}>
-          <Text style={styles.title}>Settings</Text>
-          <Text style={styles.subtitle}>Server connection, model choice, and utility actions.</Text>
-        </View>
+}: SettingsModalProps) => {
+  // `clearConfirmationText` stores the lightweight confirmation shown after the chat transcript is cleared from the settings modal.
+  const [clearConfirmationText, setClearConfirmationText] = React.useState('');
 
-        <Pressable onPress={onClose} style={styles.closeButton}>
-          <Text style={styles.closeButtonText}>Done</Text>
-        </Pressable>
-      </View>
+  React.useEffect(() => {
+    if (visible) {
+      return;
+    }
 
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
-        style={styles.scrollView}
-      >
-        <View style={styles.card}>
-          <ServerSettings
-            baseUrl={baseUrl}
-            bearerToken={bearerToken}
-            model={model}
-            models={models}
-            isFetchingModels={isFetchingModels}
-            errorText={errorText}
-            onBaseUrlChange={onBaseUrlChange}
-            onBearerTokenChange={onBearerTokenChange}
-            onModelChange={onModelChange}
-            onFetchModels={onFetchModels}
-          />
-        </View>
+    setClearConfirmationText('');
+  }, [visible]);
 
-        <View style={styles.card}>
-          <Text style={styles.sectionLabel}>Utilities</Text>
+  // `handleClearChat` clears the chat through the parent callback and then shows a local confirmation inside the settings utilities card.
+  const handleClearChat = () => {
+    onClearChat();
+    setClearConfirmationText('Chat cleared.');
+  };
 
-          <Pressable onPress={onClearChat} style={styles.clearButton}>
-            <Text style={styles.clearButtonText}>Clear Chat</Text>
+  return (
+    <Modal
+      animationType="slide"
+      onRequestClose={onClose}
+      presentationStyle="pageSheet"
+      transparent={false}
+      visible={visible}
+    >
+      <SafeAreaView edges={['top', 'bottom']} style={styles.safeArea}>
+        <View style={styles.header}>
+          <View style={styles.headerTextBlock}>
+            <Text style={styles.title}>Settings</Text>
+            <Text style={styles.subtitle}>Server connection, model choice, and utility actions.</Text>
+          </View>
+
+          <Pressable onPress={onClose} style={styles.closeButton}>
+            <Text style={styles.closeButtonText}>Done</Text>
           </Pressable>
         </View>
 
-        <View style={styles.debugCard}>
-          <Text style={styles.debugTitle}>Debug</Text>
-          <Text style={styles.debugText}>Base URL: {baseUrl}</Text>
-          <Text style={styles.debugText}>Models Endpoint: {modelsDebugEndpoint}</Text>
-        </View>
-      </ScrollView>
-    </SafeAreaView>
-  </Modal>
-);
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          style={styles.scrollView}
+        >
+          <View style={styles.card}>
+            <ServerSettings
+              baseUrl={baseUrl}
+              bearerToken={bearerToken}
+              model={model}
+              models={models}
+              isFetchingModels={isFetchingModels}
+              errorText={errorText}
+              onBaseUrlChange={onBaseUrlChange}
+              onBearerTokenChange={onBearerTokenChange}
+              onModelChange={onModelChange}
+              onFetchModels={onFetchModels}
+            />
+          </View>
+
+          <View style={styles.card}>
+            <Text style={styles.sectionLabel}>Utilities</Text>
+
+            <Pressable onPress={handleClearChat} style={styles.clearButton}>
+              <Text style={styles.clearButtonText}>Clear Chat</Text>
+            </Pressable>
+
+            {clearConfirmationText.length > 0 ? (
+              <Text style={styles.clearConfirmationText}>{clearConfirmationText}</Text>
+            ) : null}
+          </View>
+
+          <View style={styles.debugCard}>
+            <Text style={styles.debugTitle}>Debug</Text>
+            <Text style={styles.debugText}>Base URL: {baseUrl}</Text>
+            <Text style={styles.debugText}>Models Endpoint: {modelsDebugEndpoint}</Text>
+          </View>
+        </ScrollView>
+      </SafeAreaView>
+    </Modal>
+  );
+};
 
 // `styles` defines the modal settings presentation used to move configuration off the main chat screen.
 const styles = StyleSheet.create({
@@ -178,6 +201,13 @@ const styles = StyleSheet.create({
     color: '#dbe4ee',
     fontSize: 14,
     fontWeight: '600',
+  },
+  clearConfirmationText: {
+    color: '#93c5fd',
+    fontSize: 13,
+    lineHeight: 18,
+    marginTop: 10,
+    textAlign: 'center',
   },
   debugCard: {
     backgroundColor: '#0c1218',

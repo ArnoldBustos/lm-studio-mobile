@@ -59,6 +59,28 @@ export const ChatComposer = ({
         </View>
       ) : null}
 
+      {pendingAttachment ? (
+        <View style={styles.attachmentPreview}>
+          <Image
+            contentFit="cover"
+            source={{ uri: pendingAttachment.uri }}
+            style={styles.attachmentImage}
+          />
+          <View style={styles.attachmentMeta}>
+            <Text numberOfLines={1} style={styles.attachmentTitle}>
+              {pendingAttachment.fileName}
+            </Text>
+            <Text style={styles.attachmentSubtitle}>
+              {pendingAttachment.width} x {pendingAttachment.height}
+            </Text>
+          </View>
+
+          <Pressable onPress={onRemoveAttachment} style={styles.attachmentRemoveButton}>
+            <Text style={styles.attachmentRemoveButtonText}>Remove</Text>
+          </Pressable>
+        </View>
+      ) : null}
+
       <View style={styles.row}>
         <Pressable
           disabled={!canAttachImage || isPickingImage}
@@ -72,35 +94,13 @@ export const ChatComposer = ({
         </Pressable>
 
         <View style={styles.inputShell}>
-          {pendingAttachment ? (
-            <View style={styles.attachmentPreview}>
-              <Image
-                contentFit="cover"
-                source={{ uri: pendingAttachment.uri }}
-                style={styles.attachmentImage}
-              />
-              <View style={styles.attachmentMeta}>
-                <Text numberOfLines={1} style={styles.attachmentTitle}>
-                  {pendingAttachment.fileName}
-                </Text>
-                <Text style={styles.attachmentSubtitle}>
-                  {pendingAttachment.width} x {pendingAttachment.height}
-                </Text>
-              </View>
-
-              <Pressable onPress={onRemoveAttachment} style={styles.attachmentRemoveButton}>
-                <Text style={styles.attachmentRemoveButtonText}>Remove</Text>
-              </Pressable>
-            </View>
-          ) : null}
-
           <TextInput
             multiline
             onChangeText={onDraftMessageChange}
             placeholder={editingMessageId ? 'Edit your message...' : 'Message LM Studio...'}
             placeholderTextColor="#617080"
             style={styles.input}
-            textAlignVertical="top"
+            textAlignVertical={draftMessage.length > 0 ? 'top' : 'center'}
             value={draftMessage}
           />
         </View>
@@ -124,7 +124,18 @@ const styles = StyleSheet.create({
     borderTopColor: '#1f2a37',
     borderTopWidth: 1,
     paddingHorizontal: 12,
-    paddingTop: 10,
+    paddingTop: 8,
+  },
+  attachmentPreview: {
+    alignItems: 'center',
+    backgroundColor: '#111821',
+    borderColor: '#1e2935',
+    borderRadius: 16,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 8,
+    padding: 8,
   },
   row: {
     alignItems: 'flex-end',
@@ -151,17 +162,6 @@ const styles = StyleSheet.create({
     color: '#dbe4ee',
     fontSize: 12,
     fontWeight: '600',
-  },
-  attachmentPreview: {
-    alignItems: 'center',
-    backgroundColor: '#111821',
-    borderColor: '#1e2935',
-    borderRadius: 16,
-    borderWidth: 1,
-    flexDirection: 'row',
-    gap: 10,
-    marginBottom: 10,
-    padding: 10,
   },
   attachmentImage: {
     backgroundColor: '#0b0f14',
@@ -198,9 +198,8 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     borderWidth: 1,
     flex: 1,
-    gap: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
   },
   input: {
     color: '#f5f7fa',
@@ -208,8 +207,8 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     maxHeight: 132,
     minHeight: 40,
-    paddingHorizontal: 4,
-    paddingVertical: 6,
+    paddingHorizontal: 0,
+    paddingVertical: 8,
   },
   secondaryButton: {
     alignItems: 'center',

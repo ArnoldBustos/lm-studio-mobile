@@ -89,8 +89,8 @@ const ChatScreen = () => {
     <SafeAreaView edges={['top']} style={styles.safeArea}>
       <StatusBar style="light" />
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top : insets.bottom}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top : 0}
         style={styles.keyboardContainer}
       >
         <View style={styles.screen}>
@@ -112,7 +112,7 @@ const ChatScreen = () => {
           </View>
 
           <ChatComposer
-            bottomInset={insets.bottom}
+            bottomInset={Math.max(insets.bottom, 12)}
             canAttachImage={
               chat.selectedModelSupportsImages &&
               !chat.isSending &&
