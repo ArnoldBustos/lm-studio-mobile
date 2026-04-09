@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "android-lm-studio",
-    "slug": "android-lm-studio",
+    "name": "lm-studio-mobile",
+    "slug": "lm-studio-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "androidlmstudio",
+    "scheme": "lmstudiomobile",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
@@ -31,7 +31,7 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Allow android-lm-studio to access your photo library so you can attach images to chats."
+          "photosPermission": "Allow lm-studio-mobile to access your photo library so you can attach images to chats."
         }
       ],
       [
