@@ -1,10 +1,11 @@
 import React from 'react';
+import type { ReactNode } from 'react';
 import { Image } from 'expo-image';
 import {
-  ReactNode,
   Pressable,
   StyleSheet,
   Text,
+  TextStyle,
   View,
 } from 'react-native';
 
@@ -101,7 +102,7 @@ const renderFormattedMessageText = (value: string): ReactNode => {
 
   return segments.map((segment, index) => {
     // `segmentStyles` stores the inline style list applied to one parsed text fragment.
-    const segmentStyles = [styles.content];
+    const segmentStyles: TextStyle[] = [styles.content];
 
     if (segment.isBold) {
       segmentStyles.push(styles.contentBold);
